@@ -2,7 +2,7 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🏗️ skeleton.** Phase 0 (design) just closed its language decision ([ADR-0006](https://github.com/Templetry/wiki/blob/main/adr/0006-engine-language.md): Go). Implementation lands with Phase 1.
+**Status: ⚙️ Phase 1 — core implemented.** Manifest parsing + validation + casings, planner (feature exclusion, identity renaming), renderer (directive scanner, JSON patches, deterministic answers file) and the `plan`/`render` CLI are working, with unit + golden tests. Next: remote template fetching and `verify` (Phase 2).
 
 ## Principles (from the [wiki](https://github.com/Templetry/wiki))
 

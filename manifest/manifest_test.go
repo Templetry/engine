@@ -1,0 +1,84 @@
+package manifest
+
+import (
+	"strings"
+	"testing"
+)
+
+const valid = `
+schema_version: 1
+name: react-mini
+variables:
+  - key: project_name
+    type: string
+    pattern: "^[A-Za-z][A-Za-z0-9 ]*$"
+  - key: node_version
+    type: select
+    options: ["20", "22"]
+    default: "22"
+identity:
+  - from: "template-app"
+    to: "{project_name.kebab}"
+features:
+  - key: router
+    default: false
+    files: ["src/routes/**"]
+verify:
+  image: node:22
+  run: npm ci && npm run build
+`
+
+func TestLoadValid(t *testing.T) {
+	m, err := Load([]byte(valid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Name != "react-mini" || len(m.Variables) != 2 || len(m.Features) != 1 {
+		t.Errorf("unexpected parse result: %+v", m)
+	}
+}
+
+func TestLoadErrors(t *testing.T) {
+	cases := []struct{ name, replace, with, wantErr string }{
+		{"bad schema", "schema_version: 1", "schema_version: 2", "schema_version"},
+		{"bad name", "name: react-mini", "name: React Mini", "kebab-case"},
+		{"select without options", "options: [\"20\", \"22\"]\n    default: \"22\"", "default: \"22\"", "needs options"},
+		{"identity unknown var", "{project_name.kebab}", "{nope.kebab}", "unknown variable"},
+	}
+	for _, c := range cases {
+		doc := strings.Replace(valid, c.replace, c.with, 1)
+		_, err := Load([]byte(doc))
+		if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+			t.Errorf("%s: got err %v, want containing %q", c.name, err, c.wantErr)
+		}
+	}
+}
+
+func TestResolve(t *testing.T) {
+	m, err := Load([]byte(valid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := m.Resolve(Inputs{Variables: map[string]string{"project_name": "Demo Shop"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Variables["node_version"] != "22" {
+		t.Error("default not applied")
+	}
+	if res.Features["router"] != false {
+		t.Error("feature default not applied")
+	}
+	if _, err := m.Resolve(Inputs{}); err == nil {
+		t.Error("missing required variable should error")
+	}
+	if _, err := m.Resolve(Inputs{Variables: map[string]string{"project_name": "9bad"}}); err == nil {
+		t.Error("pattern violation should error")
+	}
+	if _, err := m.Resolve(Inputs{
+		Variables: map[string]string{"project_name": "Ok"},
+		Features:  map[string]bool{"nope": true},
+	}); err == nil {
+		t.Error("unknown feature should error")
+	}
+}

@@ -1,0 +1,30 @@
+schema_version: 1
+name: react-mini
+platform: web
+framework: react
+variables:
+  - key: project_name
+    label: Project name
+    type: string
+    pattern: "^[A-Za-z][A-Za-z0-9 ]*$"
+identity:
+  - from: "template-app"
+    to: "{project_name.kebab}"
+  - from: "TemplateApp"
+    to: "{project_name.pascal}"
+features:
+  - key: router
+    label: React Router
+    default: false
+    files: ["src/routes/**"]
+    patches:
+      - file: package.json
+        op: add
+        path: /dependencies/react-router-dom
+        value: "^7.0.0"
+  - key: analytics
+    label: Analytics snippet
+    default: false
+verify:
+  image: node:22
+  run: npm ci && npm run build
