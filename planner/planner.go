@@ -80,11 +80,12 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 	return plan, nil
 }
 
-// replacements expands the identity map. Content replacements are the declared
-// pairs; path replacements additionally get a slash variant for dotted
-// identities so "com.template.base" renames "com/template/base" directories.
-// Both lists are ordered longest-from first (deterministic, no substring
-// shadowing), then lexicographically for equal lengths.
+// replacements expands the identity map. Dotted identities additionally get a
+// slash variant — applied to paths (so "com.template.base" renames
+// "com/template/base" directories) AND to content (docs and scripts that
+// reference those paths). Both lists are ordered longest-from first
+// (deterministic, no substring shadowing), then lexicographically for equal
+// lengths.
 func replacements(m *manifest.Manifest, vars map[string]string) (content, paths []ops.Replacement, err error) {
 	for _, id := range m.Identity {
 		to, err := manifest.Expand(id.To, vars)
@@ -94,10 +95,12 @@ func replacements(m *manifest.Manifest, vars map[string]string) (content, paths 
 		content = append(content, ops.Replacement{From: id.From, To: to})
 		paths = append(paths, ops.Replacement{From: id.From, To: to})
 		if strings.Contains(id.From, ".") {
-			paths = append(paths, ops.Replacement{
+			slash := ops.Replacement{
 				From: strings.ReplaceAll(id.From, ".", "/"),
 				To:   strings.ReplaceAll(to, ".", "/"),
-			})
+			}
+			content = append(content, slash)
+			paths = append(paths, slash)
 		}
 	}
 	order := func(list []ops.Replacement) {

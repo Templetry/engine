@@ -67,6 +67,15 @@ func TestBuild(t *testing.T) {
 	if bySrc["README.md"].Action != ops.Render {
 		t.Error("text file must be rendered")
 	}
+	hasSlash := false
+	for _, r := range p.Replacements {
+		if r.From == "com/template/base" && r.To == "com/acme/shop" {
+			hasSlash = true
+		}
+	}
+	if !hasSlash {
+		t.Error("dotted identity must add a slash variant to content replacements")
+	}
 }
 
 func TestFeatureOnIncludes(t *testing.T) {
