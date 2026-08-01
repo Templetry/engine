@@ -16,7 +16,8 @@ import (
 	"github.com/Templetry/engine/source"
 )
 
-const version = "0.1.0-dev"
+// version is stamped by the release build via -ldflags "-X main.version=...".
+var version = "0.1.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {

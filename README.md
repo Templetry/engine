@@ -24,6 +24,22 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 
 Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/engine-v1.md) · [study II](https://github.com/Templetry/wiki/blob/main/study/engine-tech-v1.md).
 
+## Install
+
+Three ways, pick one:
+
+1. **Binary** — download your platform's executable from [Releases](https://github.com/Templetry/engine/releases), rename it to `templetry` (or `templetry.exe`) and put it on your `PATH`.
+2. **Go toolchain** — `go install github.com/Templetry/engine/cmd/templetry@latest` (installs to `$(go env GOPATH)/bin`).
+3. **From source** — clone and `go build -o templetry ./cmd/templetry`.
+
+Then:
+
+```sh
+templetry version
+templetry plan --template <dir> --set key=value --feature name
+templetry render --template <dir> --out <dir> --set key=value
+```
+
 ## Development
 
 ```sh
