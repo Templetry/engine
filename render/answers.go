@@ -28,7 +28,11 @@ func answersYAML(p *ops.Plan) []byte {
 	b.WriteString("schema_version: 1\n")
 	b.WriteString("template:\n")
 	fmt.Fprintf(&b, "  name: %s\n", p.Template)
-	b.WriteString("  source: local\n")
+	src := p.Source
+	if src == "" {
+		src = "local"
+	}
+	fmt.Fprintf(&b, "  source: %s\n", yamlScalar(src))
 	if len(p.Variables) > 0 {
 		b.WriteString("variables:\n")
 		for _, k := range sortedKeys(p.Variables) {

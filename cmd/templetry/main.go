@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Templetry/engine/manifest"
@@ -17,7 +16,7 @@ import (
 )
 
 // version is stamped by the release build via -ldflags "-X main.version=...".
-var version = "0.1.0-dev"
+var version = "0.2.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -32,6 +31,10 @@ func main() {
 		err = runPlan(os.Args[2:])
 	case "render":
 		err = runRender(os.Args[2:])
+	case "init":
+		err = runInit(os.Args[2:])
+	case "list":
+		err = runList(os.Args[2:])
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -49,11 +52,13 @@ func usage() {
 	fmt.Print(`templetry — project scaffolding for every platform, delivered to any forge
 
 usage:
+  templetry list   [--registry <url|file>]
+  templetry init   <parent>/<form> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
   templetry plan   --template <dir> [--set k=v]... [--feature k[=false]]... [--json]
   templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
   templetry version
 
-Spec: https://github.com/Templetry/wiki
+Catalog: https://github.com/Templetry/catalog · Spec: https://github.com/Templetry/wiki
 `)
 }
 
@@ -88,26 +93,31 @@ func parseInputs(sets, feats []string) (manifest.Inputs, error) {
 	return in, nil
 }
 
+// planFromFiles builds a plan from an in-memory template (local dir or
+// remote tarball alike).
+func planFromFiles(files *source.FileSet, in manifest.Inputs) (*ops.Plan, error) {
+	f := files.Get("template.yml")
+	if f == nil {
+		f = files.Get("template.yaml")
+	}
+	if f == nil {
+		return nil, fmt.Errorf("the template has no template.yml")
+	}
+	m, err := manifest.Load(f.Data)
+	if err != nil {
+		return nil, err
+	}
+	return planner.Build(m, in, files)
+}
+
 func buildPlan(templateDir string, in manifest.Inputs) (*ops.Plan, *source.FileSet, error) {
-	name := filepath.Join(templateDir, "template.yml")
-	data, err := os.ReadFile(name)
-	if os.IsNotExist(err) {
-		data, err = os.ReadFile(filepath.Join(templateDir, "template.yaml"))
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("no template.yml in %s: %w", templateDir, err)
-	}
-	m, err := manifest.Load(data)
-	if err != nil {
-		return nil, nil, err
-	}
 	files, err := source.LoadDir(templateDir)
 	if err != nil {
 		return nil, nil, err
 	}
-	p, err := planner.Build(m, in, files)
+	p, err := planFromFiles(files, in)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%s: %w", templateDir, err)
 	}
 	return p, files, nil
 }
