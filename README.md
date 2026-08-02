@@ -35,7 +35,9 @@ Three ways, pick one:
 Then:
 
 ```sh
-templetry version
+templetry list                                  # browse the official catalog
+templetry init kmp/single-module --out my-app \
+  --set "project_name=My App" --set "base_package=com.me.myapp"
 templetry plan --template <dir> --set key=value --feature name
 templetry render --template <dir> --out <dir> --set key=value
 ```
