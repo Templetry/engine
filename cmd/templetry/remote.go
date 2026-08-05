@@ -100,6 +100,9 @@ func runInit(args []string) error {
 		return err
 	}
 	p.Source = fmt.Sprintf("github.com/%s@%s/%s", parent.Repo, parent.Ref, form.Path)
+	if sha, err := source.ResolveGitHubRef(parent.Repo, parent.Ref, ""); err == nil {
+		p.SourceCommit = sha
+	}
 	if entries, err := os.ReadDir(*out); err == nil && len(entries) > 0 && !*force {
 		return fmt.Errorf("output directory %s is not empty (use --force)", *out)
 	}

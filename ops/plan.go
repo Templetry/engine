@@ -35,7 +35,8 @@ type FileAction struct {
 // data: printing it is the dry-run, executing it is the render (ADR study II).
 type Plan struct {
 	Template     string            `json:"template"`
-	Source       string            `json:"source,omitempty"` // template origin; empty means local
+	Source       string            `json:"source,omitempty"`       // template origin; empty means local
+	SourceCommit string            `json:"sourceCommit,omitempty"` // resolved template commit, when known
 	Variables    map[string]string `json:"variables"`
 	Features     map[string]bool   `json:"features"`
 	Replacements []Replacement     `json:"replacements,omitempty"`

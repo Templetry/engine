@@ -33,6 +33,9 @@ func answersYAML(p *ops.Plan) []byte {
 		src = "local"
 	}
 	fmt.Fprintf(&b, "  source: %s\n", yamlScalar(src))
+	if p.SourceCommit != "" {
+		fmt.Fprintf(&b, "  commit: %s\n", p.SourceCommit)
+	}
 	if len(p.Variables) > 0 {
 		b.WriteString("variables:\n")
 		for _, k := range sortedKeys(p.Variables) {

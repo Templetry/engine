@@ -76,6 +76,32 @@ func FromTarGz(r io.Reader, subdir string) (*FileSet, error) {
 	return set, nil
 }
 
+// ResolveGitHubRef resolves a branch/tag/ref of "owner/name" to its commit
+// SHA. token may be empty (subject to anonymous rate limits).
+func ResolveGitHubRef(repo, ref, token string) (string, error) {
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/"+repo+"/commits/"+ref, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github.sha")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("resolving %s@%s: HTTP %d", repo, ref, resp.StatusCode)
+	}
+	sha, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(sha)), nil
+}
+
 // FetchGitHubTarball downloads repo ("owner/name") at ref (branch, tag or
 // commit) as a FileSet, optionally scoped to subdir.
 func FetchGitHubTarball(repo, ref, subdir string) (*FileSet, error) {
