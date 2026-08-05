@@ -36,6 +36,9 @@ func FromTarGz(r io.Reader, subdir string) (*FileSet, error) {
 			continue
 		}
 		name := pathpkg.Clean(hdr.Name)
+		if name == ".." || strings.HasPrefix(name, "../") || strings.ContainsAny(name, "\\:") {
+			return nil, fmt.Errorf("tarball contains unsafe path %q", hdr.Name)
+		}
 		i := strings.Index(name, "/")
 		if i < 0 {
 			continue // top-level file outside the wrapper dir; GitHub never emits these
@@ -48,8 +51,11 @@ func FromTarGz(r io.Reader, subdir string) (*FileSet, error) {
 			}
 			name = rest
 		}
-		if name == "" || strings.HasPrefix(name, "../") {
+		if name == "" {
 			continue
+		}
+		if strings.HasPrefix(name, "../") || strings.ContainsAny(name, "\\:") {
+			return nil, fmt.Errorf("tarball contains unsafe path %q", hdr.Name)
 		}
 		data, err := io.ReadAll(tr)
 		if err != nil {

@@ -2,6 +2,7 @@ package planner
 
 import (
 	"fmt"
+	pathpkg "path"
 	"sort"
 	"strings"
 
@@ -55,6 +56,9 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 			continue
 		}
 		dest := applyToPath(path, pathReps)
+		if err := validateDest(dest); err != nil {
+			return nil, fmt.Errorf("identity map produces unsafe path %q for %q: %w", dest, path, err)
+		}
 		if prev, dup := destOf[dest]; dup {
 			return nil, fmt.Errorf("identity map sends both %q and %q to %q", prev, path, dest)
 		}
@@ -114,6 +118,26 @@ func replacements(m *manifest.Manifest, vars map[string]string) (content, paths 
 	order(content)
 	order(paths)
 	return content, paths, nil
+}
+
+// validateDest rejects output paths that could escape the output root or
+// abuse platform path semantics — the defense against hostile third-party
+// templates (study III hardening item).
+func validateDest(dest string) error {
+	if dest == "" {
+		return fmt.Errorf("empty path")
+	}
+	if strings.ContainsAny(dest, "\\:") {
+		return fmt.Errorf("backslash or colon not allowed")
+	}
+	cleaned := pathpkg.Clean(dest)
+	if pathpkg.IsAbs(cleaned) {
+		return fmt.Errorf("absolute path not allowed")
+	}
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return fmt.Errorf("path escapes the output root")
+	}
+	return nil
 }
 
 func applyToPath(path string, reps []ops.Replacement) string {

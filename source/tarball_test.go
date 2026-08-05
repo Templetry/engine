@@ -77,3 +77,15 @@ func TestFromTarGzWrongSubdir(t *testing.T) {
 		t.Error("empty subdir selection must error")
 	}
 }
+
+func TestFromTarGzHostilePaths(t *testing.T) {
+	for _, evil := range []string{"repo/../../evil.txt", "repo/a\\b.txt", "repo/c:d.txt"} {
+		buf := makeTarGz(t, map[string]struct {
+			data string
+			mode int64
+		}{evil: {"x", 0o644}})
+		if _, err := FromTarGz(buf, ""); err == nil {
+			t.Errorf("hostile entry %q must be rejected", evil)
+		}
+	}
+}

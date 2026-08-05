@@ -116,6 +116,28 @@ identity:
 	}
 }
 
+func TestUnsafeDestRejected(t *testing.T) {
+	for _, evil := range []string{"../{name.kebab}", "/abs/{name.kebab}", "C:{name.kebab}", "a\\\\b{name.kebab}"} {
+		m, err := manifest.Load([]byte(`
+schema_version: 1
+name: demo
+variables:
+  - key: name
+    type: string
+identity:
+  - from: "victim"
+    to: "` + evil + `"
+`))
+		if err != nil {
+			t.Fatalf("%s: %v", evil, err)
+		}
+		_, err = Build(m, manifest.Inputs{Variables: map[string]string{"name": "x"}}, files("victim.txt"))
+		if err == nil || !strings.Contains(err.Error(), "unsafe path") {
+			t.Errorf("identity to %q must be rejected, got %v", evil, err)
+		}
+	}
+}
+
 func TestPatchTargetMissing(t *testing.T) {
 	m, err := manifest.Load([]byte(`
 schema_version: 1
