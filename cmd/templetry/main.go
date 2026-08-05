@@ -49,7 +49,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Print(`templetry â€” project scaffolding for every platform, delivered to any forge
+	fmt.Print(`templetry - project scaffolding for every platform, delivered to any forge
 
 usage:
   templetry list   [--registry <url|file>]
@@ -58,7 +58,7 @@ usage:
   templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
   templetry version
 
-Catalog: https://github.com/Templetry/catalog Â· Spec: https://github.com/Templetry/wiki
+Catalog: https://github.com/Templetry/catalog | Spec: https://github.com/Templetry/wiki
 `)
 }
 
