@@ -138,6 +138,51 @@ identity:
 	}
 }
 
+func TestWindowsHostileDestRejected(t *testing.T) {
+	cases := []struct{ to, file, want string }{
+		{"nul", "victim.txt", "reserved Windows device name"}, // nul.txt
+		{"com1", "victim", "reserved Windows device name"},
+		{"docs/aux", "victim.md", "reserved Windows device name"}, // docs/aux.md
+		{"x.", "victim", "dot or space"},
+		{"x ", "victim", "dot or space"},
+	}
+	for _, c := range cases {
+		m, err := manifest.Load([]byte(`
+schema_version: 1
+name: demo
+identity:
+  - from: "victim"
+    to: "` + c.to + `"
+`))
+		if err != nil {
+			t.Fatalf("%s: %v", c.to, err)
+		}
+		_, err = Build(m, manifest.Inputs{}, files(c.file))
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("identity to %q on %q must be rejected with %q, got %v", c.to, c.file, c.want, err)
+		}
+	}
+}
+
+func TestCaseInsensitiveDestCollision(t *testing.T) {
+	m, err := manifest.Load([]byte(`
+schema_version: 1
+name: demo
+identity:
+  - from: "old-a"
+    to: "Same"
+  - from: "old-b"
+    to: "same"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Build(m, manifest.Inputs{}, files("old-a.txt", "old-b.txt"))
+	if err == nil || !strings.Contains(err.Error(), "identity map sends both") {
+		t.Errorf("case-insensitive collision must error (Same.txt vs same.txt alias on Windows/macOS), got %v", err)
+	}
+}
+
 func TestPatchTargetMissing(t *testing.T) {
 	m, err := manifest.Load([]byte(`
 schema_version: 1

@@ -59,10 +59,13 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 		if err := validateDest(dest); err != nil {
 			return nil, fmt.Errorf("identity map produces unsafe path %q for %q: %w", dest, path, err)
 		}
-		if prev, dup := destOf[dest]; dup {
+		// Collision detection is case-insensitive: outputs must survive
+		// Windows and macOS filesystems, where Same.txt and same.txt alias.
+		destKey := strings.ToLower(dest)
+		if prev, dup := destOf[destKey]; dup {
 			return nil, fmt.Errorf("identity map sends both %q and %q to %q", prev, path, dest)
 		}
-		destOf[dest] = path
+		destOf[destKey] = path
 
 		action := ops.Render
 		if files.Get(path).Binary {
@@ -120,6 +123,17 @@ func replacements(m *manifest.Manifest, vars map[string]string) (content, paths 
 	return content, paths, nil
 }
 
+// reservedSegments are Windows device names: illegal as a path segment's
+// base name (with or without extension) on the engine's primary platform.
+var reservedSegments = func() map[string]bool {
+	m := map[string]bool{"CON": true, "PRN": true, "AUX": true, "NUL": true}
+	for i := 1; i <= 9; i++ {
+		m[fmt.Sprintf("COM%d", i)] = true
+		m[fmt.Sprintf("LPT%d", i)] = true
+	}
+	return m
+}()
+
 // validateDest rejects output paths that could escape the output root or
 // abuse platform path semantics — the defense against hostile third-party
 // templates (study III hardening item).
@@ -130,12 +144,29 @@ func validateDest(dest string) error {
 	if strings.ContainsAny(dest, "\\:") {
 		return fmt.Errorf("backslash or colon not allowed")
 	}
+	for _, r := range dest {
+		if r < 0x20 {
+			return fmt.Errorf("control character not allowed")
+		}
+	}
 	cleaned := pathpkg.Clean(dest)
 	if pathpkg.IsAbs(cleaned) {
 		return fmt.Errorf("absolute path not allowed")
 	}
 	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
 		return fmt.Errorf("path escapes the output root")
+	}
+	for _, seg := range strings.Split(cleaned, "/") {
+		if seg != strings.TrimRight(seg, ". ") {
+			return fmt.Errorf("segment %q ends in a dot or space (silently trimmed on Windows)", seg)
+		}
+		base := seg
+		if i := strings.IndexByte(seg, '.'); i >= 0 {
+			base = seg[:i]
+		}
+		if reservedSegments[strings.ToUpper(base)] {
+			return fmt.Errorf("segment %q is a reserved Windows device name", seg)
+		}
 	}
 	return nil
 }
