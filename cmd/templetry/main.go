@@ -13,6 +13,7 @@ import (
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
+	"github.com/Templetry/engine/verify"
 )
 
 // version is stamped by the release build via -ldflags "-X main.version=...".
@@ -31,6 +32,8 @@ func main() {
 		err = runPlan(os.Args[2:])
 	case "render":
 		err = runRender(os.Args[2:])
+	case "verify":
+		err = runVerify(os.Args[2:])
 	case "init":
 		err = runInit(os.Args[2:])
 	case "list":
@@ -56,6 +59,7 @@ usage:
   templetry init   <parent>/<form> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
   templetry plan   --template <dir> [--set k=v]... [--feature k[=false]]... [--json]
   templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
+  templetry verify --template <dir> [--dir <rendered>] [--set k=v]... [--feature k[=false]]... [--keep]
   templetry version
 
 Catalog: https://github.com/Templetry/catalog | Spec: https://github.com/Templetry/wiki
@@ -93,9 +97,7 @@ func parseInputs(sets, feats []string) (manifest.Inputs, error) {
 	return in, nil
 }
 
-// planFromFiles builds a plan from an in-memory template (local dir or
-// remote tarball alike).
-func planFromFiles(files *source.FileSet, in manifest.Inputs) (*ops.Plan, error) {
+func loadManifest(files *source.FileSet) (*manifest.Manifest, error) {
 	f := files.Get("template.yml")
 	if f == nil {
 		f = files.Get("template.yaml")
@@ -103,7 +105,13 @@ func planFromFiles(files *source.FileSet, in manifest.Inputs) (*ops.Plan, error)
 	if f == nil {
 		return nil, fmt.Errorf("the template has no template.yml")
 	}
-	m, err := manifest.Load(f.Data)
+	return manifest.Load(f.Data)
+}
+
+// planFromFiles builds a plan from an in-memory template (local dir or
+// remote tarball alike).
+func planFromFiles(files *source.FileSet, in manifest.Inputs) (*ops.Plan, error) {
+	m, err := loadManifest(files)
 	if err != nil {
 		return nil, err
 	}
@@ -181,5 +189,68 @@ func runRender(args []string) error {
 		return err
 	}
 	fmt.Printf("rendered %s -> %s (%d files)\n", p.Template, *out, result.Len())
+	return nil
+}
+
+// runVerify renders the template (or takes an existing render via --dir)
+// and executes its manifest's verify command in Docker (ADR-0004).
+func runVerify(args []string) error {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	template := fs.String("template", "", "template directory")
+	dir := fs.String("dir", "", "already-rendered directory to verify (default: render to a temp dir)")
+	keep := fs.Bool("keep", false, "keep the temporary render and print its path")
+	var sets, feats multiFlag
+	fs.Var(&sets, "set", "variable value key=value (repeatable)")
+	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
+	fs.Parse(args)
+	if *template == "" {
+		return fmt.Errorf("--template is required")
+	}
+	files, err := source.LoadDir(*template)
+	if err != nil {
+		return err
+	}
+	m, err := loadManifest(files)
+	if err != nil {
+		return fmt.Errorf("%s: %w", *template, err)
+	}
+	if m.Verify == nil {
+		return fmt.Errorf("template %q declares no verify — add verify: {image, run} to its template.yml", m.Name)
+	}
+
+	target := *dir
+	if target == "" {
+		in, err := parseInputs(sets, feats)
+		if err != nil {
+			return err
+		}
+		p, err := planner.Build(m, in, files)
+		if err != nil {
+			return err
+		}
+		result, err := render.Apply(p, files)
+		if err != nil {
+			return err
+		}
+		tmp, err := os.MkdirTemp("", "templetry-verify-")
+		if err != nil {
+			return err
+		}
+		if *keep {
+			fmt.Printf("render kept at %s\n", tmp)
+		} else {
+			defer os.RemoveAll(tmp)
+		}
+		if err := render.WriteDir(result, tmp); err != nil {
+			return err
+		}
+		target = tmp
+	}
+
+	fmt.Printf("verify: %s in %s\n", m.Verify.Run, m.Verify.Image)
+	if err := verify.Run(m.Verify.Image, m.Verify.Run, target, os.Stdout, os.Stderr); err != nil {
+		return err
+	}
+	fmt.Println("verify: OK")
 	return nil
 }

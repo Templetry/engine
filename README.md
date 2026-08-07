@@ -2,7 +2,7 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🚀 Shipped — [v0.2.2](https://github.com/Templetry/engine/releases/latest).** Manifest parsing + validation + casings, planner (feature exclusion, identity renaming), renderer (directive scanner, JSON patches, deterministic answers file with drift anchor), remote catalog fetching (`list`/`init` against the official registry) and binary releases for linux/darwin/windows. Next: `verify` in Docker as a first-class CLI step.
+**Status: 🚀 Shipped — [v0.2.2](https://github.com/Templetry/engine/releases/latest).** Manifest parsing + validation + casings, planner (feature exclusion, identity renaming), renderer (directive scanner, JSON patches, deterministic answers file with drift anchor), remote catalog fetching (`list`/`init` against the official registry), `verify` in Docker and binary releases for linux/darwin/windows. Road to 1.0: [study VI](https://github.com/Templetry/wiki/blob/main/study/road-to-v1.md).
 
 ## Principles (from the [wiki](https://github.com/Templetry/wiki))
 
@@ -20,7 +20,7 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 | `ops` | Operation types as data |
 | `render` | Execute a Plan against a virtual file tree |
 | `verify` | Run the template's verify command in Docker |
-| `cmd/templetry` | Thin CLI: `plan`, `render`, `version` |
+| `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `version` |
 
 Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/engine-v1.md) · [study II](https://github.com/Templetry/wiki/blob/main/study/engine-tech-v1.md).
 
@@ -40,6 +40,7 @@ templetry init kmp/single-module --out my-app \
   --set "project_name=My App" --set "base_package=com.me.myapp"
 templetry plan --template <dir> --set key=value --feature name
 templetry render --template <dir> --out <dir> --set key=value
+templetry verify --template <dir> --set key=value    # render to a temp dir and compile it in Docker
 ```
 
 ## Development

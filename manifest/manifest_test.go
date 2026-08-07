@@ -82,3 +82,14 @@ func TestResolve(t *testing.T) {
 		t.Error("unknown feature should error")
 	}
 }
+
+func TestLoadStripsBOM(t *testing.T) {
+	data := append([]byte{0xEF, 0xBB, 0xBF}, []byte("schema_version: 1\nname: demo\n")...)
+	m, err := Load(data)
+	if err != nil {
+		t.Fatalf("BOM manifest must load: %v", err)
+	}
+	if m.Name != "demo" {
+		t.Errorf("name = %q, want demo", m.Name)
+	}
+}

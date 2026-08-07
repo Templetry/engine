@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 
@@ -59,8 +60,11 @@ var (
 	nameRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 )
 
-// Load parses and validates a template.yml document.
+// Load parses and validates a template.yml document. A UTF-8 BOM (common
+// from Windows editors) is tolerated — without stripping it, the first key
+// silently fails to parse (study I §6).
 func Load(data []byte) (*Manifest, error) {
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 	var m Manifest
 	if err := yaml.Unmarshal(data, &m); err != nil {
 		return nil, fmt.Errorf("template.yml: %w", err)
