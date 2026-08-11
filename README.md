@@ -22,6 +22,7 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 | `verify` | Run the template's verify command in Docker |
 | `update` | The update cycle: re-render with recorded inputs, diff, three-way merge |
 | `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `update`, `version` |
+| `cmd/templetry-mcp` | MCP server (stdio): the engine's verbs as tools for AI agents |
 
 Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/engine-v1.md) · [study II](https://github.com/Templetry/wiki/blob/main/study/engine-tech-v1.md).
 
@@ -43,6 +44,14 @@ templetry plan --template <dir> --set key=value --feature name
 templetry render --template <dir> --out <dir> --set key=value
 templetry verify --template <dir> --set key=value    # render to a temp dir and compile it in Docker
 templetry update ./my-app                            # preview a template update (--apply to write)
+```
+
+## MCP server (AI agents)
+
+`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes five tools: `list_templates`, `get_form_schema`, `plan`, `render` and `update`, so an agent can browse the catalog, scaffold a ready-to-work project and keep it updated. Example Claude Code registration:
+
+```sh
+claude mcp add templetry -- templetry-mcp
 ```
 
 ## Development
