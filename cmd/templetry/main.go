@@ -13,6 +13,7 @@ import (
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
+	"github.com/Templetry/engine/update"
 	"github.com/Templetry/engine/verify"
 )
 
@@ -34,6 +35,8 @@ func main() {
 		err = runRender(os.Args[2:])
 	case "verify":
 		err = runVerify(os.Args[2:])
+	case "update":
+		err = runUpdate(os.Args[2:])
 	case "init":
 		err = runInit(os.Args[2:])
 	case "list":
@@ -60,6 +63,7 @@ usage:
   templetry plan   --template <dir> [--set k=v]... [--feature k[=false]]... [--json]
   templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
   templetry verify --template <dir> [--dir <rendered>] [--set k=v]... [--feature k[=false]]... [--keep]
+  templetry update [dir] [--apply] [--token <github-token>]
   templetry version
 
 Catalog: https://github.com/Templetry/catalog | Spec: https://github.com/Templetry/wiki
@@ -252,5 +256,49 @@ func runVerify(args []string) error {
 		return err
 	}
 	fmt.Println("verify: OK")
+	return nil
+}
+
+// runUpdate previews (default) or applies the template update cycle on an
+// existing project: re-render at the template's head with the recorded
+// inputs, diff, three-way merge, write.
+func runUpdate(args []string) error {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	apply := fs.Bool("apply", false, "write the update (default: preview only)")
+	token := fs.String("token", "", "GitHub token for private templates / rate limits")
+	fs.Parse(args)
+	dir := fs.Arg(0)
+	if dir == "" {
+		dir = "."
+	}
+
+	p, err := update.Prepare(dir, *token)
+	if err != nil {
+		return err
+	}
+	short := func(s string) string {
+		if len(s) > 7 {
+			return s[:7]
+		}
+		return s
+	}
+	fmt.Printf("template %s · %s -> %s\n", p.Template, short(p.OldCommit), short(p.NewCommit))
+	if len(p.Entries) == 0 {
+		fmt.Printf("up to date (%d files unchanged)\n", p.Unchanged)
+		return nil
+	}
+	for _, e := range p.Entries {
+		fmt.Printf("  %-9s %s\n", e.Status, e.Path)
+	}
+	fmt.Printf("  %d unchanged\n", p.Unchanged)
+	if !*apply {
+		fmt.Println("preview only — run again with --apply to write")
+		return nil
+	}
+	n, err := p.Apply()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("update applied: %d files written — review with git before committing\n", n)
 	return nil
 }

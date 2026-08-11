@@ -20,7 +20,8 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 | `ops` | Operation types as data |
 | `render` | Execute a Plan against a virtual file tree |
 | `verify` | Run the template's verify command in Docker |
-| `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `version` |
+| `update` | The update cycle: re-render with recorded inputs, diff, three-way merge |
+| `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `update`, `version` |
 
 Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/engine-v1.md) · [study II](https://github.com/Templetry/wiki/blob/main/study/engine-tech-v1.md).
 
@@ -41,6 +42,7 @@ templetry init kmp/single-module --out my-app \
 templetry plan --template <dir> --set key=value --feature name
 templetry render --template <dir> --out <dir> --set key=value
 templetry verify --template <dir> --set key=value    # render to a temp dir and compile it in Docker
+templetry update ./my-app                            # preview a template update (--apply to write)
 ```
 
 ## Development
