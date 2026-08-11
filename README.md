@@ -2,7 +2,7 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🚀 Shipped — [v0.2.2](https://github.com/Templetry/engine/releases/latest).** Manifest parsing + validation + casings, planner (feature exclusion, identity renaming), renderer (directive scanner, JSON patches, deterministic answers file with drift anchor), remote catalog fetching (`list`/`init` against the official registry), `verify` in Docker and binary releases for linux/darwin/windows. Road to 1.0: [study VI](https://github.com/Templetry/wiki/blob/main/study/road-to-v1.md).
+**Status: 🚀 [v1.0.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)). Manifest parsing + validation + casings, planner (feature exclusion, identity renaming), renderer (directive scanner, JSON patches, deterministic answers file with drift anchor), remote catalog fetching, `verify` in Docker, hardened output paths, and binary releases for linux/darwin/windows.
 
 ## Principles (from the [wiki](https://github.com/Templetry/wiki))
 

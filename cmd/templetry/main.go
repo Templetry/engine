@@ -17,7 +17,7 @@ import (
 )
 
 // version is stamped by the release build via -ldflags "-X main.version=...".
-var version = "0.2.1-dev"
+var version = "1.0.0-dev"
 
 func main() {
 	if len(os.Args) < 2 {
