@@ -37,7 +37,7 @@ func Apply(p *ops.Plan, in *source.FileSet) (*source.FileSet, error) {
 				data = bytes.ReplaceAll(data, []byte(r.From), []byte(r.To))
 			}
 			for _, patch := range fa.Patches {
-				data, err = applyPatch(data, patch, p.Variables)
+				data, err = applyPatch(fa.Src, data, patch, p.Variables)
 				if err != nil {
 					return nil, fmt.Errorf("%s: patch %s %s: %w", fa.Src, patch.Op, patch.Path, err)
 				}

@@ -18,6 +18,7 @@ type Manifest struct {
 	Variables     []Variable `yaml:"variables,omitempty" json:"variables,omitempty"`
 	Identity      []Rename   `yaml:"identity,omitempty" json:"identity,omitempty"`
 	Features      []Feature  `yaml:"features,omitempty" json:"features,omitempty"`
+	Presets       []Preset   `yaml:"presets,omitempty" json:"presets,omitempty"`
 	Verify        *Verify    `yaml:"verify,omitempty" json:"verify,omitempty"`
 }
 
@@ -36,11 +37,20 @@ type Rename struct {
 }
 
 type Feature struct {
-	Key     string   `yaml:"key" json:"key"`
-	Label   string   `yaml:"label,omitempty" json:"label,omitempty"`
-	Default bool     `yaml:"default,omitempty" json:"default,omitempty"`
-	Files   []string `yaml:"files,omitempty" json:"files,omitempty"`
-	Patches []Patch  `yaml:"patches,omitempty" json:"patches,omitempty"`
+	Key       string   `yaml:"key" json:"key"`
+	Label     string   `yaml:"label,omitempty" json:"label,omitempty"`
+	Default   bool     `yaml:"default,omitempty" json:"default,omitempty"`
+	Files     []string `yaml:"files,omitempty" json:"files,omitempty"`
+	Patches   []Patch  `yaml:"patches,omitempty" json:"patches,omitempty"`
+	Requires  []string `yaml:"requires,omitempty" json:"requires,omitempty"`
+	Conflicts []string `yaml:"conflicts,omitempty" json:"conflicts,omitempty"`
+}
+
+// Preset is a named feature combination — one click instead of n toggles.
+type Preset struct {
+	Key      string          `yaml:"key" json:"key"`
+	Label    string          `yaml:"label,omitempty" json:"label,omitempty"`
+	Features map[string]bool `yaml:"features" json:"features"`
 }
 
 type Patch struct {
@@ -149,6 +159,39 @@ func (m *Manifest) Validate() error {
 			}
 		}
 	}
+	for _, f := range m.Features {
+		for _, req := range f.Requires {
+			if !featKeys[req] {
+				return fmt.Errorf("feature %q requires unknown feature %q", f.Key, req)
+			}
+			if req == f.Key {
+				return fmt.Errorf("feature %q requires itself", f.Key)
+			}
+		}
+		for _, con := range f.Conflicts {
+			if !featKeys[con] {
+				return fmt.Errorf("feature %q conflicts with unknown feature %q", f.Key, con)
+			}
+			if con == f.Key {
+				return fmt.Errorf("feature %q conflicts with itself", f.Key)
+			}
+		}
+	}
+	presetKeys := map[string]bool{}
+	for _, p := range m.Presets {
+		if !keyRe.MatchString(p.Key) {
+			return fmt.Errorf("preset key %q is invalid", p.Key)
+		}
+		if presetKeys[p.Key] {
+			return fmt.Errorf("duplicate preset key %q", p.Key)
+		}
+		presetKeys[p.Key] = true
+		for k := range p.Features {
+			if !featKeys[k] {
+				return fmt.Errorf("preset %q references unknown feature %q", p.Key, k)
+			}
+		}
+	}
 	if m.Verify != nil && (m.Verify.Image == "" || m.Verify.Run == "") {
 		return fmt.Errorf("verify needs both image and run")
 	}
@@ -159,6 +202,7 @@ func (m *Manifest) Validate() error {
 type Inputs struct {
 	Variables map[string]string
 	Features  map[string]bool
+	Preset    string
 }
 
 // Resolved are fully-resolved, validated inputs: every variable has a value
@@ -217,12 +261,48 @@ func (m *Manifest) Resolve(in Inputs) (*Resolved, error) {
 			return nil, fmt.Errorf("unknown feature %q", k)
 		}
 	}
+	// Resolution order: defaults, then the preset's states, then explicit
+	// user choices — the more specific always wins.
+	var preset *Preset
+	if in.Preset != "" {
+		for i := range m.Presets {
+			if m.Presets[i].Key == in.Preset {
+				preset = &m.Presets[i]
+				break
+			}
+		}
+		if preset == nil {
+			return nil, fmt.Errorf("unknown preset %q", in.Preset)
+		}
+	}
 	for _, f := range m.Features {
-		state, given := in.Features[f.Key]
-		if !given {
-			state = f.Default
+		state := f.Default
+		if preset != nil {
+			if s, ok := preset.Features[f.Key]; ok {
+				state = s
+			}
+		}
+		if s, given := in.Features[f.Key]; given {
+			state = s
 		}
 		res.Features[f.Key] = state
+	}
+	// requires/conflicts are enforced on the final states — never silently
+	// auto-enabled or auto-disabled (typos and surprises never pass).
+	for _, f := range m.Features {
+		if !res.Features[f.Key] {
+			continue
+		}
+		for _, req := range f.Requires {
+			if !res.Features[req] {
+				return nil, fmt.Errorf("feature %q requires %q — enable it too, or disable %q", f.Key, req, f.Key)
+			}
+		}
+		for _, con := range f.Conflicts {
+			if res.Features[con] {
+				return nil, fmt.Errorf("features %q and %q cannot be enabled together", f.Key, con)
+			}
+		}
 	}
 	return res, nil
 }

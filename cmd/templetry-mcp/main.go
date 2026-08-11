@@ -144,6 +144,10 @@ var featuresProp = map[string]any{
 	"description": "Feature toggles by key",
 	"additionalProperties": map[string]any{"type": "boolean"},
 }
+var presetProp = map[string]any{
+	"type":        "string",
+	"description": "Named feature combo from the manifest's presets; explicit features override it",
+}
 
 var toolDefs = []map[string]any{
 	{
@@ -160,7 +164,8 @@ var toolDefs = []map[string]any{
 		"name":        "plan",
 		"description": "Dry-run: show exactly what rendering would produce (file actions, renames, exclusions) without writing anything.",
 		"inputSchema": schema(map[string]any{
-			"template": templateProp, "variables": variablesProp, "features": featuresProp, "registry": registryProp,
+			"template": templateProp, "variables": variablesProp, "features": featuresProp,
+			"preset": presetProp, "registry": registryProp,
 		}, "template"),
 	},
 	{
@@ -168,7 +173,7 @@ var toolDefs = []map[string]any{
 		"description": "Render a template into a local directory, producing a ready-to-work project (with its .templetry-answers.yml provenance record). The directory must be empty unless force is true.",
 		"inputSchema": schema(map[string]any{
 			"template": templateProp, "out_dir": map[string]any{"type": "string", "description": "Output directory"},
-			"variables": variablesProp, "features": featuresProp, "registry": registryProp,
+			"variables": variablesProp, "features": featuresProp, "preset": presetProp, "registry": registryProp,
 			"force": map[string]any{"type": "boolean", "description": "Write into a non-empty directory"},
 		}, "template", "out_dir"),
 	},
@@ -241,6 +246,7 @@ type toolArgs struct {
 	OutDir    string            `json:"out_dir"`
 	Variables map[string]string `json:"variables"`
 	Features  map[string]bool   `json:"features"`
+	Preset    string            `json:"preset"`
 	Force     bool              `json:"force"`
 	Dir       string            `json:"dir"`
 	Apply     bool              `json:"apply"`
@@ -288,7 +294,7 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		p, err := planner.Build(m, manifest.Inputs{Variables: a.Variables, Features: a.Features}, files)
+		p, err := planner.Build(m, manifest.Inputs{Variables: a.Variables, Features: a.Features, Preset: a.Preset}, files)
 		if err != nil {
 			return "", err
 		}
@@ -302,7 +308,7 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		p, err := planner.Build(m, manifest.Inputs{Variables: a.Variables, Features: a.Features}, files)
+		p, err := planner.Build(m, manifest.Inputs{Variables: a.Variables, Features: a.Features, Preset: a.Preset}, files)
 		if err != nil {
 			return "", err
 		}

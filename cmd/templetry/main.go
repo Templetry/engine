@@ -59,10 +59,10 @@ func usage() {
 
 usage:
   templetry list   [--registry <url|file>]
-  templetry init   <parent>/<form> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
-  templetry plan   --template <dir> [--set k=v]... [--feature k[=false]]... [--json]
-  templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--force]
-  templetry verify --template <dir> [--dir <rendered>] [--set k=v]... [--feature k[=false]]... [--keep]
+  templetry init   <parent>/<form> --out <dir> [--set k=v]... [--feature k[=false]]... [--preset k] [--force]
+  templetry plan   --template <dir> [--set k=v]... [--feature k[=false]]... [--preset k] [--json]
+  templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--preset k] [--force]
+  templetry verify --template <dir> [--dir <rendered>] [--set k=v]... [--feature k[=false]]... [--preset k] [--keep]
   templetry update [dir] [--apply] [--token <github-token>]
   templetry version
 
@@ -138,6 +138,7 @@ func runPlan(args []string) error {
 	fs := flag.NewFlagSet("plan", flag.ExitOnError)
 	template := fs.String("template", "", "template directory")
 	asJSON := fs.Bool("json", false, "emit the plan as JSON")
+	preset := fs.String("preset", "", "named feature combo from the manifest")
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
@@ -149,6 +150,7 @@ func runPlan(args []string) error {
 	if err != nil {
 		return err
 	}
+	in.Preset = *preset
 	p, _, err := buildPlan(*template, in)
 	if err != nil {
 		return err
@@ -167,6 +169,7 @@ func runRender(args []string) error {
 	template := fs.String("template", "", "template directory")
 	out := fs.String("out", "", "output directory")
 	force := fs.Bool("force", false, "write into a non-empty output directory")
+	preset := fs.String("preset", "", "named feature combo from the manifest")
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
@@ -178,6 +181,7 @@ func runRender(args []string) error {
 	if err != nil {
 		return err
 	}
+	in.Preset = *preset
 	p, files, err := buildPlan(*template, in)
 	if err != nil {
 		return err
@@ -203,6 +207,7 @@ func runVerify(args []string) error {
 	template := fs.String("template", "", "template directory")
 	dir := fs.String("dir", "", "already-rendered directory to verify (default: render to a temp dir)")
 	keep := fs.Bool("keep", false, "keep the temporary render and print its path")
+	preset := fs.String("preset", "", "named feature combo from the manifest")
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
@@ -228,6 +233,7 @@ func runVerify(args []string) error {
 		if err != nil {
 			return err
 		}
+		in.Preset = *preset
 		p, err := planner.Build(m, in, files)
 		if err != nil {
 			return err

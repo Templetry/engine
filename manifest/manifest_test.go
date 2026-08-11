@@ -93,3 +93,79 @@ func TestLoadStripsBOM(t *testing.T) {
 		t.Errorf("name = %q, want demo", m.Name)
 	}
 }
+
+func TestRequiresConflictsValidation(t *testing.T) {
+	_, err := Load([]byte("schema_version: 1\nname: demo\nfeatures:\n  - key: a\n    requires: [ghost]\n"))
+	if err == nil || !strings.Contains(err.Error(), "unknown feature") {
+		t.Errorf("unknown requires must fail, got %v", err)
+	}
+	_, err = Load([]byte("schema_version: 1\nname: demo\nfeatures:\n  - key: a\n    conflicts: [a]\n"))
+	if err == nil || !strings.Contains(err.Error(), "conflicts with itself") {
+		t.Errorf("self conflict must fail, got %v", err)
+	}
+}
+
+func TestRequiresConflictsResolution(t *testing.T) {
+	m, err := Load([]byte(`
+schema_version: 1
+name: demo
+features:
+  - key: auth
+  - key: firebase
+  - key: room
+    requires: [auth]
+  - key: sqlite
+    conflicts: [room]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Resolve(Inputs{Features: map[string]bool{"room": true}}); err == nil ||
+		!strings.Contains(err.Error(), `requires "auth"`) {
+		t.Errorf("unmet requires must fail, got %v", err)
+	}
+	if _, err := m.Resolve(Inputs{Features: map[string]bool{"room": true, "auth": true}}); err != nil {
+		t.Errorf("met requires must pass, got %v", err)
+	}
+	if _, err := m.Resolve(Inputs{Features: map[string]bool{"room": true, "auth": true, "sqlite": true}}); err == nil ||
+		!strings.Contains(err.Error(), "cannot be enabled together") {
+		t.Errorf("conflict must fail, got %v", err)
+	}
+}
+
+func TestPresets(t *testing.T) {
+	m, err := Load([]byte(`
+schema_version: 1
+name: demo
+features:
+  - key: a
+    default: true
+  - key: b
+  - key: c
+presets:
+  - key: minimal
+    features: {a: false, b: true}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Resolve(Inputs{Preset: "ghost"}); err == nil || !strings.Contains(err.Error(), "unknown preset") {
+		t.Errorf("unknown preset must fail, got %v", err)
+	}
+	// defaults -> preset -> explicit: c stays default false, preset flips
+	// a/b, the explicit choice overrides the preset for b.
+	res, err := m.Resolve(Inputs{Preset: "minimal", Features: map[string]bool{"b": false}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"a": false, "b": false, "c": false}
+	for k, v := range want {
+		if res.Features[k] != v {
+			t.Errorf("feature %s = %v, want %v", k, res.Features[k], v)
+		}
+	}
+	_, err = Load([]byte("schema_version: 1\nname: demo\npresets:\n  - key: p\n    features: {ghost: true}\n"))
+	if err == nil || !strings.Contains(err.Error(), "unknown feature") {
+		t.Errorf("preset with unknown feature must fail, got %v", err)
+	}
+}

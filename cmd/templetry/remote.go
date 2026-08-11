@@ -68,6 +68,7 @@ func runInit(args []string) error {
 	out := fs.String("out", "", "output directory")
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	force := fs.Bool("force", false, "write into a non-empty output directory")
+	preset := fs.String("preset", "", "named feature combo from the manifest")
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
@@ -82,6 +83,7 @@ func runInit(args []string) error {
 	if err != nil {
 		return err
 	}
+	in.Preset = *preset
 	reg, err := loadRegistry(*registry)
 	if err != nil {
 		return err
