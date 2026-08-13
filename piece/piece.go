@@ -73,21 +73,16 @@ func Load(data []byte) (*Manifest, error) {
 // FetchForm downloads the form a GitHub-sourced project was rendered
 // from, returning its files and the resolved head commit.
 func FetchForm(ans answers.Answers) (*source.FileSet, string, error) {
-	rest, ok := strings.CutPrefix(ans.Template.Source, "github.com/")
-	if !ok {
-		return nil, "", fmt.Errorf("project source %q is not a GitHub template", ans.Template.Source)
+	src, ref, path, err := source.ParseSourceString(ans.Template.Source)
+	if err != nil {
+		return nil, "", err
 	}
-	repo, right, ok := strings.Cut(rest, "@")
-	if !ok {
-		return nil, "", fmt.Errorf("cannot parse source %q", ans.Template.Source)
-	}
-	ref, path, _ := strings.Cut(right, "/")
-	files, err := source.FetchGitHubTarball(repo, ref, path)
+	files, err := source.Fetch(src, ref, path, "")
 	if err != nil {
 		return nil, "", err
 	}
 	commit := ""
-	if sha, err := source.ResolveGitHubRef(repo, ref, ""); err == nil {
+	if sha, err := source.ResolveRef(src, ref, ""); err == nil {
 		commit = sha
 	}
 	return files, commit, nil

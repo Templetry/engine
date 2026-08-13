@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/Templetry/engine/answers"
 	"github.com/Templetry/engine/manifest"
@@ -55,21 +54,16 @@ func Prepare(dir, token string) (*Preview, error) {
 	if err != nil {
 		return nil, err
 	}
-	rest, ok := strings.CutPrefix(ans.Template.Source, "github.com/")
-	if !ok {
-		return nil, fmt.Errorf("project source is not a GitHub template: %s", ans.Template.Source)
-	}
-	repo, right, ok := strings.Cut(rest, "@")
-	if !ok {
-		return nil, fmt.Errorf("cannot parse source %q", ans.Template.Source)
-	}
-	ref, path, _ := strings.Cut(right, "/")
-
-	files, err := source.FetchGitHubTarball(repo, ref, path)
+	src, ref, path, err := source.ParseSourceString(ans.Template.Source)
 	if err != nil {
 		return nil, err
 	}
-	rendered, sourceCommit, err := renderAt(files, ans, token, repo, ref)
+
+	files, err := source.Fetch(src, ref, path, token)
+	if err != nil {
+		return nil, err
+	}
+	rendered, sourceCommit, err := renderAt(files, ans, token, &src, ref)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +72,8 @@ func Prepare(dir, token string) (*Preview, error) {
 	// third band for real merges when both sides touched a file.
 	var baseRendered *source.FileSet
 	if ans.Template.Commit != "" {
-		if baseFiles, err := source.FetchGitHubTarball(repo, ans.Template.Commit, path); err == nil {
-			baseRendered, _, _ = renderAt(baseFiles, ans, "", "", "")
+		if baseFiles, err := source.Fetch(src, ans.Template.Commit, path, token); err == nil {
+			baseRendered, _, _ = renderAt(baseFiles, ans, "", nil, "")
 		}
 	}
 
@@ -92,9 +86,9 @@ func Prepare(dir, token string) (*Preview, error) {
 	return out, nil
 }
 
-// renderAt renders the template files with the recorded inputs. When repo
-// and ref are given, the resolved commit is recorded in the plan.
-func renderAt(files *source.FileSet, ans Answers, token, repo, ref string) (*source.FileSet, string, error) {
+// renderAt renders the template files with the recorded inputs. When src
+// is given, the resolved commit is recorded in the plan.
+func renderAt(files *source.FileSet, ans Answers, token string, src *source.Ref, ref string) (*source.FileSet, string, error) {
 	mf := files.Get("template.yml")
 	if mf == nil {
 		mf = files.Get("template.yaml")
@@ -111,8 +105,8 @@ func renderAt(files *source.FileSet, ans Answers, token, repo, ref string) (*sou
 		return nil, "", err
 	}
 	p.Source = ans.Template.Source
-	if repo != "" {
-		if sha, err := source.ResolveGitHubRef(repo, ref, token); err == nil {
+	if src != nil {
+		if sha, err := source.ResolveRef(*src, ref, token); err == nil {
 			p.SourceCommit = sha
 		}
 	}

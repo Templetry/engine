@@ -92,8 +92,12 @@ func runInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("fetching %s@%s (%s)…\n", parent.Repo, parent.Ref, form.Path)
-	files, err := source.FetchGitHubTarball(parent.Repo, parent.Ref, form.Path)
+	src, err := source.ParseRef(parent.SourceRef())
+	if err != nil {
+		return err
+	}
+	fmt.Printf("fetching %s@%s (%s)…\n", src, parent.Ref, form.Path)
+	files, err := source.Fetch(src, parent.Ref, form.Path, os.Getenv("TEMPLETRY_TOKEN"))
 	if err != nil {
 		return err
 	}
@@ -101,8 +105,8 @@ func runInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	p.Source = fmt.Sprintf("github.com/%s@%s/%s", parent.Repo, parent.Ref, form.Path)
-	if sha, err := source.ResolveGitHubRef(parent.Repo, parent.Ref, ""); err == nil {
+	p.Source = source.FormatSource(src, parent.Ref, form.Path)
+	if sha, err := source.ResolveRef(src, parent.Ref, os.Getenv("TEMPLETRY_TOKEN")); err == nil {
 		p.SourceCommit = sha
 	}
 	if entries, err := os.ReadDir(*out); err == nil && len(entries) > 0 && !*force {

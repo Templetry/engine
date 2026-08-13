@@ -22,7 +22,20 @@ type Parent struct {
 	Label string `json:"label,omitempty"`
 	Repo  string `json:"repo"`
 	Ref   string `json:"ref"`
-	Forms []Form `json:"forms"`
+	// Source is the optional forge scheme (registry v2.1, ADR-0015):
+	// "gitlab:gitlab.com/group/proj" or "gitea:codeberg.org/owner/repo".
+	// Empty means GitHub with Repo as owner/name — the historical shape.
+	Source string `json:"source,omitempty"`
+	Forms  []Form `json:"forms"`
+}
+
+// SourceRef resolves the parent's forge reference: the explicit Source
+// when present, otherwise GitHub with Repo.
+func (p Parent) SourceRef() string {
+	if p.Source != "" {
+		return p.Source
+	}
+	return p.Repo
 }
 
 type Form struct {

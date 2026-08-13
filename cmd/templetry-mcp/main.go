@@ -243,7 +243,11 @@ func fetchForm(registry, ref string) (*source.FileSet, *manifest.Manifest, strin
 	if err != nil {
 		return nil, nil, "", err
 	}
-	files, err := source.FetchGitHubTarball(parent.Repo, parent.Ref, form.Path)
+	src, err := source.ParseRef(parent.SourceRef())
+	if err != nil {
+		return nil, nil, "", err
+	}
+	files, err := source.Fetch(src, parent.Ref, form.Path, os.Getenv("TEMPLETRY_TOKEN"))
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -258,8 +262,7 @@ func fetchForm(registry, ref string) (*source.FileSet, *manifest.Manifest, strin
 	if err != nil {
 		return nil, nil, "", err
 	}
-	srcRef := fmt.Sprintf("github.com/%s@%s/%s", parent.Repo, parent.Ref, form.Path)
-	return files, m, srcRef, nil
+	return files, m, source.FormatSource(src, parent.Ref, form.Path), nil
 }
 
 type toolArgs struct {
@@ -336,11 +339,10 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 			return "", err
 		}
 		p.Source = srcRef
-		rest := strings.TrimPrefix(srcRef, "github.com/")
-		repo, right, _ := strings.Cut(rest, "@")
-		ref, _, _ := strings.Cut(right, "/")
-		if sha, err := source.ResolveGitHubRef(repo, ref, ""); err == nil {
-			p.SourceCommit = sha
+		if src, ref, _, err := source.ParseSourceString(srcRef); err == nil {
+			if sha, err := source.ResolveRef(src, ref, ""); err == nil {
+				p.SourceCommit = sha
+			}
 		}
 		if entries, err := os.ReadDir(a.OutDir); err == nil && len(entries) > 0 && !a.Force {
 			return "", fmt.Errorf("output directory %s is not empty (set force to override)", a.OutDir)
