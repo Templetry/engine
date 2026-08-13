@@ -14,8 +14,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Templetry/engine/answers"
 	"github.com/Templetry/engine/catalog"
 	"github.com/Templetry/engine/manifest"
+	"github.com/Templetry/engine/piece"
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
@@ -185,6 +187,26 @@ var toolDefs = []map[string]any{
 			"apply": map[string]any{"type": "boolean", "description": "Write the update instead of previewing"},
 		}, "dir"),
 	},
+	{
+		"name":        "list_pieces",
+		"description": "List the lazy pieces a project's template ships — decoupled units the project can adopt after creation — marking the already-applied ones.",
+		"inputSchema": schema(map[string]any{
+			"dir": map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml)"},
+		}, "dir"),
+	},
+	{
+		"name":        "add_piece",
+		"description": "Apply one lazy piece to an existing Templetry project: renders the piece with the project's identity, writes only new files (never overwrites), applies the piece's declared patches and records it in the answers file.",
+		"inputSchema": schema(map[string]any{
+			"dir":   map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml)"},
+			"piece": map[string]any{"type": "string", "description": "Piece name (see list_pieces)"},
+			"variables": map[string]any{
+				"type":                 "object",
+				"description":          "Piece variable values by key",
+				"additionalProperties": map[string]any{"type": "string"},
+			},
+		}, "dir", "piece"),
+	},
 }
 
 // loadRegistry reads a registry from a local file or URL; empty means the
@@ -250,6 +272,7 @@ type toolArgs struct {
 	Force     bool              `json:"force"`
 	Dir       string            `json:"dir"`
 	Apply     bool              `json:"apply"`
+	Piece     string            `json:"piece"`
 }
 
 func callTool(name string, raw json.RawMessage) (string, error) {
@@ -365,6 +388,90 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		}
 		fmt.Fprintf(&b, "update applied: %d files written — review with git before committing\n", n)
 		return b.String(), nil
+
+	case "list_pieces":
+		if a.Dir == "" {
+			return "", fmt.Errorf("dir is required")
+		}
+		ans, err := answers.Read(a.Dir)
+		if err != nil {
+			return "", err
+		}
+		files, _, err := piece.FetchForm(ans)
+		if err != nil {
+			return "", err
+		}
+		infos := piece.List(files, ans)
+		if len(infos) == 0 {
+			return "this template ships no pieces", nil
+		}
+		var b strings.Builder
+		for _, in := range infos {
+			mark := " "
+			if in.Applied {
+				mark = "*"
+			}
+			fmt.Fprintf(&b, "%s %-24s %s\n", mark, in.Name, in.Description)
+		}
+		b.WriteString("(* already applied)\n")
+		return b.String(), nil
+
+	case "add_piece":
+		if a.Dir == "" || a.Piece == "" {
+			return "", fmt.Errorf("dir and piece are required")
+		}
+		ans, err := answers.Read(a.Dir)
+		if err != nil {
+			return "", err
+		}
+		for _, p := range ans.Pieces {
+			if p.Name == a.Piece {
+				return "", fmt.Errorf("piece %q is already applied", a.Piece)
+			}
+		}
+		files, commit, err := piece.FetchForm(ans)
+		if err != nil {
+			return "", err
+		}
+		mf := files.Get("template.yml")
+		if mf == nil {
+			mf = files.Get("template.yaml")
+		}
+		if mf == nil {
+			return "", fmt.Errorf("the template no longer has a template.yml")
+		}
+		formM, err := manifest.Load(mf.Data)
+		if err != nil {
+			return "", err
+		}
+		pieceFiles, err := piece.Extract(files, a.Piece)
+		if err != nil {
+			return "", err
+		}
+		pf := pieceFiles.Get("piece.yml")
+		if pf == nil {
+			pf = pieceFiles.Get("piece.yaml")
+		}
+		pm, err := piece.Load(pf.Data)
+		if err != nil {
+			return "", err
+		}
+		res, err := piece.Apply(a.Dir, formM, pm, pieceFiles, ans.Variables, a.Variables)
+		if err != nil {
+			return "", err
+		}
+		src := ans.Template.Source
+		if src != "" && src != "local" {
+			src += "/pieces/" + a.Piece
+		}
+		ans.Pieces = append(ans.Pieces, answers.AppliedPiece{
+			Name: a.Piece, Source: src, Commit: commit,
+			Variables: res.Variables, Files: res.Files,
+		})
+		if err := answers.Write(a.Dir, ans); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("piece %s applied: %d files + %d patches — review with git", a.Piece, len(res.Files), len(pm.Patches)), nil
 	}
 	return "", fmt.Errorf("unknown tool %q", name)
 }

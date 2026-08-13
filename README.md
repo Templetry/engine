@@ -21,7 +21,9 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 | `render` | Execute a Plan against a virtual file tree |
 | `verify` | Run the template's verify command in Docker |
 | `update` | The update cycle: re-render with recorded inputs, diff, three-way merge |
-| `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `update`, `version` |
+| `answers` | The `.templetry-answers.yml` record: one deterministic reader/emitter |
+| `piece` | Lazy pieces (ADR-0014): decoupled units with their own lifecycle |
+| `cmd/templetry` | Thin CLI: `list`, `init`, `plan`, `render`, `verify`, `update`, `pieces`, `add`, `version` |
 | `cmd/templetry-mcp` | MCP server (stdio): the engine's verbs as tools for AI agents |
 
 Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/engine-v1.md) · [study II](https://github.com/Templetry/wiki/blob/main/study/engine-tech-v1.md).
@@ -44,6 +46,8 @@ templetry plan --template <dir> --set key=value --feature name
 templetry render --template <dir> --out <dir> --set key=value
 templetry verify --template <dir> --set key=value    # render to a temp dir and compile it in Docker
 templetry update ./my-app                            # preview a template update (--apply to write)
+templetry pieces ./my-app                            # lazy pieces the template ships
+templetry add axios-api ./my-app --set api_base=/v2  # adopt a piece into a living project
 ```
 
 ## MCP server (AI agents)

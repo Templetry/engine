@@ -1,66 +1,18 @@
 package render
 
 import (
-	"fmt"
-	"regexp"
-	"sort"
-	"strconv"
-	"strings"
-
+	"github.com/Templetry/engine/answers"
 	"github.com/Templetry/engine/ops"
 )
 
-const answersPath = ".templetry-answers.yml"
+const answersPath = answers.Path
 
-var bareScalarRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9 ._-]*$`)
-
-func yamlScalar(s string) string {
-	if bareScalarRe.MatchString(s) && !strings.HasSuffix(s, " ") {
-		return s
-	}
-	return strconv.Quote(s)
-}
-
-// answersYAML emits the deterministic answers file (wiki spec/answers-file.md):
-// sorted keys, no timestamp, byte-stable for identical inputs.
+// answersYAML emits the deterministic answers file for a plan through the
+// shared emitter (wiki spec/answers-file.md).
 func answersYAML(p *ops.Plan) []byte {
-	var b strings.Builder
-	b.WriteString("schema_version: 1\n")
-	b.WriteString("template:\n")
-	fmt.Fprintf(&b, "  name: %s\n", p.Template)
-	src := p.Source
-	if src == "" {
-		src = "local"
-	}
-	fmt.Fprintf(&b, "  source: %s\n", yamlScalar(src))
-	if p.SourceCommit != "" {
-		fmt.Fprintf(&b, "  commit: %s\n", p.SourceCommit)
-	}
-	if len(p.Variables) > 0 {
-		b.WriteString("variables:\n")
-		for _, k := range sortedKeys(p.Variables) {
-			fmt.Fprintf(&b, "  %s: %s\n", k, yamlScalar(p.Variables[k]))
-		}
-	}
-	if len(p.Features) > 0 {
-		b.WriteString("features:\n")
-		keys := make([]string, 0, len(p.Features))
-		for k := range p.Features {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			fmt.Fprintf(&b, "  %s: %t\n", k, p.Features[k])
-		}
-	}
-	return []byte(b.String())
-}
-
-func sortedKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	a := answers.Answers{SchemaVersion: 1, Variables: p.Variables, Features: p.Features}
+	a.Template.Name = p.Template
+	a.Template.Source = p.Source
+	a.Template.Commit = p.SourceCommit
+	return answers.Marshal(a)
 }

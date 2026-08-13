@@ -37,6 +37,10 @@ func main() {
 		err = runVerify(os.Args[2:])
 	case "update":
 		err = runUpdate(os.Args[2:])
+	case "pieces":
+		err = runPieces(os.Args[2:])
+	case "add":
+		err = runAdd(os.Args[2:])
 	case "init":
 		err = runInit(os.Args[2:])
 	case "list":
@@ -64,6 +68,8 @@ usage:
   templetry render --template <dir> --out <dir> [--set k=v]... [--feature k[=false]]... [--preset k] [--force]
   templetry verify --template <dir> [--dir <rendered>] [--set k=v]... [--feature k[=false]]... [--preset k] [--keep]
   templetry update [dir] [--apply] [--token <github-token>]
+  templetry pieces [dir] [--template <dir>]
+  templetry add    <piece> [dir] [--set k=v]... [--template <dir>]
   templetry version
 
 Catalog: https://github.com/Templetry/catalog | Spec: https://github.com/Templetry/wiki

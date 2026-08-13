@@ -13,36 +13,19 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Templetry/engine/answers"
 	"github.com/Templetry/engine/manifest"
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
-	"github.com/goccy/go-yaml"
 )
 
-// Answers is the provenance record every render writes.
-type Answers struct {
-	Template struct {
-		Name   string `yaml:"name"`
-		Source string `yaml:"source"`
-		Commit string `yaml:"commit"`
-	} `yaml:"template"`
-	Variables map[string]string `yaml:"variables"`
-	Features  map[string]bool   `yaml:"features"`
-}
+// Answers is the provenance record every render writes (see the answers
+// package, which owns the format).
+type Answers = answers.Answers
 
 // ReadAnswers loads a project's .templetry-answers.yml.
-func ReadAnswers(dir string) (Answers, error) {
-	var ans Answers
-	data, err := os.ReadFile(filepath.Join(dir, ".templetry-answers.yml"))
-	if err != nil {
-		return ans, fmt.Errorf("no answers file in %s", dir)
-	}
-	if err := yaml.Unmarshal(data, &ans); err != nil {
-		return ans, err
-	}
-	return ans, nil
-}
+func ReadAnswers(dir string) (Answers, error) { return answers.Read(dir) }
 
 // Entry is one file the update would touch.
 type Entry struct {

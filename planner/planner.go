@@ -51,6 +51,12 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: "manifest"})
 			continue
 		}
+		if strings.HasPrefix(path, "pieces/") {
+			// Pieces are applied post-creation (ADR-0014), never part of
+			// the base render.
+			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: "piece"})
+			continue
+		}
 		if reason, excluded := excludedBy(m, res.Features, path); excluded {
 			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: reason})
 			continue
@@ -83,6 +89,54 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 	}
 	for file := range patchTargets {
 		return nil, fmt.Errorf("patch target %q does not exist in the template (or is excluded)", file)
+	}
+	return plan, nil
+}
+
+// BuildPiece plans a piece render (ADR-0014): every piece file except its
+// manifest, renamed through the FORM's identity map expanded with the
+// project's recorded variables. The plan's variable set additionally holds
+// the piece's own resolved variables so tpl:var directives in piece files
+// can use both. Features are empty by design — tpl:if inside a piece is an
+// error (a piece is its own unit).
+func BuildPiece(formM *manifest.Manifest, projectVars, pieceVars map[string]string, files *source.FileSet) (*ops.Plan, error) {
+	contentReps, pathReps, err := replacements(formM, projectVars)
+	if err != nil {
+		return nil, err
+	}
+	merged := map[string]string{}
+	for k, v := range projectVars {
+		merged[k] = v
+	}
+	for k, v := range pieceVars {
+		merged[k] = v
+	}
+	plan := &ops.Plan{
+		Template:     formM.Name,
+		Variables:    merged,
+		Features:     map[string]bool{},
+		Replacements: contentReps,
+	}
+	destOf := map[string]string{}
+	for _, path := range files.Paths() {
+		if path == "piece.yml" || path == "piece.yaml" {
+			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: "manifest"})
+			continue
+		}
+		dest := applyToPath(path, pathReps)
+		if err := validateDest(dest); err != nil {
+			return nil, fmt.Errorf("identity map produces unsafe path %q for %q: %w", dest, path, err)
+		}
+		destKey := strings.ToLower(dest)
+		if prev, dup := destOf[destKey]; dup {
+			return nil, fmt.Errorf("identity map sends both %q and %q to %q", prev, path, dest)
+		}
+		destOf[destKey] = path
+		action := ops.Render
+		if files.Get(path).Binary {
+			action = ops.Copy
+		}
+		plan.Files = append(plan.Files, ops.FileAction{Src: path, Dest: dest, Action: action})
 	}
 	return plan, nil
 }

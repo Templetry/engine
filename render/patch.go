@@ -14,6 +14,12 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+// PatchFile applies one manifest patch to a project file's content — the
+// sanctioned way pieces wire themselves into shared files (ADR-0014).
+func PatchFile(file string, doc []byte, p manifest.Patch, vars map[string]string) ([]byte, error) {
+	return applyPatch(file, doc, p, vars)
+}
+
 // applyPatch applies one RFC 6902 operation to a structured document. The
 // codec is chosen by the target's extension: JSON natively; YAML and TOML
 // through a JSON round-trip. String values expand {var.casing} placeholders.
