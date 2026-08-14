@@ -73,6 +73,16 @@ func Load(data []byte) (*Manifest, error) {
 	return &m, nil
 }
 
+// cutPieceRoot strips whichever piece root a path carries.
+func cutPieceRoot(path string) (string, bool) {
+	for _, root := range Roots {
+		if rest, ok := strings.CutPrefix(path, root); ok {
+			return rest, true
+		}
+	}
+	return "", false
+}
+
 // FetchForm downloads the form a GitHub-sourced project was rendered
 // from, returning its files and the resolved head commit.
 func FetchForm(ans answers.Answers) (*source.FileSet, string, error) {
@@ -91,6 +101,12 @@ func FetchForm(ans answers.Answers) (*source.FileSet, string, error) {
 	return files, commit, nil
 }
 
+// Roots are the directories a form may keep its pieces in. `_pieces/` is
+// the escape hatch for glob-based toolchains: Go, and any tool that walks
+// a tree, skips directories starting with an underscore, so the template
+// still compiles in place with its pieces alongside (ADR-0003 + ADR-0014).
+var Roots = []string{"pieces/", "_pieces/"}
+
 // Info is one piece as listings show it.
 type Info struct {
 	Name        string `json:"name"`
@@ -108,7 +124,7 @@ func List(formFiles *source.FileSet, ans answers.Answers) []Info {
 	out := []Info{}
 	seen := map[string]bool{}
 	for _, path := range formFiles.Paths() {
-		rest, ok := strings.CutPrefix(path, "pieces/")
+		rest, ok := cutPieceRoot(path)
 		if !ok {
 			continue
 		}
@@ -129,11 +145,12 @@ func List(formFiles *source.FileSet, ans answers.Answers) []Info {
 // Extract returns the piece subtree of a form FileSet with the prefix
 // stripped, or an error naming the available pieces.
 func Extract(formFiles *source.FileSet, name string) (*source.FileSet, error) {
-	prefix := "pieces/" + name + "/"
 	out := source.NewFileSet()
 	for _, path := range formFiles.Paths() {
-		if rest, ok := strings.CutPrefix(path, prefix); ok && rest != "" {
-			out.Put(rest, formFiles.Get(path))
+		for _, root := range Roots {
+			if rest, ok := strings.CutPrefix(path, root+name+"/"); ok && rest != "" {
+				out.Put(rest, formFiles.Get(path))
+			}
 		}
 	}
 	if out.Len() == 0 {

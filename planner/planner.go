@@ -51,7 +51,7 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: "manifest"})
 			continue
 		}
-		if strings.HasPrefix(path, "pieces/") {
+		if strings.HasPrefix(path, "pieces/") || strings.HasPrefix(path, "_pieces/") {
 			// Pieces are applied post-creation (ADR-0014), never part of
 			// the base render.
 			plan.Files = append(plan.Files, ops.FileAction{Src: path, Action: ops.Exclude, Reason: "piece"})

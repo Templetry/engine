@@ -172,3 +172,19 @@ func TestPieceIdentityRenamesEntity(t *testing.T) {
 		t.Errorf("form identity lost: %s", got)
 	}
 }
+
+func TestUnderscorePieceRoot(t *testing.T) {
+	// _pieces/ keeps a form compiling in place under glob-based toolchains.
+	fs := source.NewFileSet()
+	fs.Put("template.yml", &source.File{Data: []byte("x")})
+	fs.Put("_pieces/crud/piece.yml", &source.File{Data: []byte("schema_version: 1\nname: crud\ndescription: CRUD\n")})
+	fs.Put("_pieces/crud/internal/store/x.go", &source.File{Data: []byte("package store\n")})
+	infos := List(fs, answers.Answers{})
+	if len(infos) != 1 || infos[0].Name != "crud" || infos[0].Description != "CRUD" {
+		t.Fatalf("list = %+v", infos)
+	}
+	sub, err := Extract(fs, "crud")
+	if err != nil || sub.Len() != 2 || sub.Get("internal/store/x.go") == nil {
+		t.Fatalf("extract: %v len=%d", err, sub.Len())
+	}
+}
