@@ -29,9 +29,9 @@ func TestDiffAgainstDisk(t *testing.T) {
 		}
 	}
 	write("same.txt", "alpha\n")
-	write("stale.txt", "old content\n")                       // untouched by user, template moved
-	write("both.txt", "line1 user\nline2\nline3\n")           // user touched line1, template touches line3
-	write("clash.txt", "user version\n")                      // both touched the same line
+	write("stale.txt", "old content\n")             // untouched by user, template moved
+	write("both.txt", "line1 user\nline2\nline3\n") // user touched line1, template touches line3
+	write("clash.txt", "user version\n")            // both touched the same line
 
 	rendered := fileset(map[string]string{
 		"same.txt":  "alpha\n",

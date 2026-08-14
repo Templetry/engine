@@ -137,13 +137,13 @@ var templateProp = map[string]any{
 	"description": "Template reference as <parent>/<form>, e.g. kmp/single-module (see list_templates)",
 }
 var variablesProp = map[string]any{
-	"type":        "object",
-	"description": "Variable values by key (see get_form_schema for keys, patterns and defaults)",
+	"type":                 "object",
+	"description":          "Variable values by key (see get_form_schema for keys, patterns and defaults)",
 	"additionalProperties": map[string]any{"type": "string"},
 }
 var featuresProp = map[string]any{
-	"type":        "object",
-	"description": "Feature toggles by key",
+	"type":                 "object",
+	"description":          "Feature toggles by key",
 	"additionalProperties": map[string]any{"type": "boolean"},
 }
 var presetProp = map[string]any{
