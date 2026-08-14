@@ -99,17 +99,22 @@ func Build(m *manifest.Manifest, in manifest.Inputs, files *source.FileSet) (*op
 // the piece's own resolved variables so tpl:var directives in piece files
 // can use both. Features are empty by design — tpl:if inside a piece is an
 // error (a piece is its own unit).
-func BuildPiece(formM *manifest.Manifest, projectVars, pieceVars map[string]string, files *source.FileSet) (*ops.Plan, error) {
-	contentReps, pathReps, err := replacements(formM, projectVars)
-	if err != nil {
-		return nil, err
-	}
+func BuildPiece(formM *manifest.Manifest, projectVars, pieceVars map[string]string, pieceIdentity []manifest.Rename, files *source.FileSet) (*ops.Plan, error) {
 	merged := map[string]string{}
 	for k, v := range projectVars {
 		merged[k] = v
 	}
 	for k, v := range pieceVars {
 		merged[k] = v
+	}
+	// A piece may carry its own identity map — this is how "pieces per
+	// object" work: the piece is written against a canonical entity name
+	// and its own variables rename it (ADR-0014). Piece and form entries
+	// are resolved together so the longest-first ordering stays global.
+	identity := append(append([]manifest.Rename{}, pieceIdentity...), formM.Identity...)
+	contentReps, pathReps, err := replacementsFor(identity, merged)
+	if err != nil {
+		return nil, err
 	}
 	plan := &ops.Plan{
 		Template:     formM.Name,
@@ -148,7 +153,12 @@ func BuildPiece(formM *manifest.Manifest, projectVars, pieceVars map[string]stri
 // (deterministic, no substring shadowing), then lexicographically for equal
 // lengths.
 func replacements(m *manifest.Manifest, vars map[string]string) (content, paths []ops.Replacement, err error) {
-	for _, id := range m.Identity {
+	return replacementsFor(m.Identity, vars)
+}
+
+// replacementsFor builds the ordered replacement lists for an identity map.
+func replacementsFor(identity []manifest.Rename, vars map[string]string) (content, paths []ops.Replacement, err error) {
+	for _, id := range identity {
 		to, err := manifest.Expand(id.To, vars)
 		if err != nil {
 			return nil, nil, fmt.Errorf("identity %q: %v", id.From, err)

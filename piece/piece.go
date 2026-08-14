@@ -26,7 +26,10 @@ type Manifest struct {
 	Name          string              `yaml:"name" json:"name"`
 	Description   string              `yaml:"description,omitempty" json:"description,omitempty"`
 	Variables     []manifest.Variable `yaml:"variables,omitempty" json:"variables,omitempty"`
-	Patches       []manifest.Patch    `yaml:"patches,omitempty" json:"patches,omitempty"`
+	// Identity renames the piece's canonical entity names with the piece's
+	// own variables — the mechanism behind pieces per object.
+	Identity []manifest.Rename `yaml:"identity,omitempty" json:"identity,omitempty"`
+	Patches  []manifest.Patch  `yaml:"patches,omitempty" json:"patches,omitempty"`
 }
 
 var (
@@ -175,7 +178,7 @@ func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles
 		}
 	}
 
-	plan, err := planner.BuildPiece(formM, projectVars, resolved.Variables, pieceFiles)
+	plan, err := planner.BuildPiece(formM, projectVars, resolved.Variables, pm.Identity, pieceFiles)
 	if err != nil {
 		return none, err
 	}

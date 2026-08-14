@@ -133,3 +133,42 @@ func TestListAndExtract(t *testing.T) {
 		t.Errorf("ghost extract error = %v", err)
 	}
 }
+
+// A piece per object: the piece is written against a canonical entity name
+// and renames it through its own identity map (ADR-0014).
+const entityPiece = `
+schema_version: 1
+name: crud-resource
+variables:
+  - key: entity
+    label: Entity name
+identity:
+  - from: "TemplateEntity"
+    to: "{entity.pascal}"
+  - from: "template_entity"
+    to: "{entity.snake}"
+`
+
+func TestPieceIdentityRenamesEntity(t *testing.T) {
+	dir := t.TempDir()
+	pm, fs := pieceFiles(t, entityPiece, map[string]string{
+		"src/template_entity.ts": "export class TemplateEntity {}\n// template-app owns this\n",
+	})
+	res, err := Apply(dir, formManifest(t), pm, fs,
+		map[string]string{"project_name": "My App"}, map[string]string{"entity": "product order"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Files) != 1 || res.Files[0] != "src/product_order.ts" {
+		t.Fatalf("files = %v, want src/product_order.ts", res.Files)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "src", "product_order.ts"))
+	got := string(data)
+	if !strings.Contains(got, "class ProductOrder") {
+		t.Errorf("entity not renamed in content: %s", got)
+	}
+	// The form's identity still applies alongside the piece's.
+	if !strings.Contains(got, "my-app owns this") {
+		t.Errorf("form identity lost: %s", got)
+	}
+}
