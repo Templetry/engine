@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/Templetry/engine/answers"
+	"github.com/Templetry/engine/catalog"
 	"github.com/Templetry/engine/manifest"
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
@@ -30,6 +31,22 @@ type Manifest struct {
 	// own variables — the mechanism behind pieces per object.
 	Identity []manifest.Rename `yaml:"identity,omitempty" json:"identity,omitempty"`
 	Patches  []manifest.Patch  `yaml:"patches,omitempty" json:"patches,omitempty"`
+	// AppliesTo lists the template names this piece supports (the `name`
+	// of their template.yml). Empty means universal (ADR-0016).
+	AppliesTo []string `yaml:"applies_to,omitempty" json:"applies_to,omitempty"`
+}
+
+// Supports reports whether the piece applies to a template by name.
+func (m *Manifest) Supports(templateName string) bool {
+	if len(m.AppliesTo) == 0 {
+		return true
+	}
+	for _, n := range m.AppliesTo {
+		if n == templateName {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -112,6 +129,7 @@ type Info struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Applied     bool   `json:"applied"`
+	Common      bool   `json:"common,omitempty"` // came from a shared repo
 }
 
 // List finds the pieces a form ships (pieces/<name>/piece.yml inside the
@@ -167,6 +185,124 @@ func Extract(formFiles *source.FileSet, name string) (*source.FileSet, error) {
 		return nil, fmt.Errorf("piece %q has no piece.yml", name)
 	}
 	return out, nil
+}
+
+// Resolved is a piece ready to be inspected or applied, wherever it lives.
+type Resolved struct {
+	Name     string
+	Manifest *Manifest
+	Files    *source.FileSet
+	Source   string // what the answers file records for this piece
+	Commit   string // the source's resolved head
+	Common   bool   // true when it came from a shared repository
+}
+
+// FetchCommon downloads one common piece and checks it supports the
+// template (ADR-0016).
+func FetchCommon(entry catalog.CommonPiece, templateName string) (*Resolved, error) {
+	src, err := source.ParseRef(entry.SourceRef())
+	if err != nil {
+		return nil, err
+	}
+	ref := entry.Ref
+	if ref == "" {
+		ref = "main"
+	}
+	files, err := source.Fetch(src, ref, entry.Path, "")
+	if err != nil {
+		return nil, err
+	}
+	pm, err := ManifestOf(files)
+	if err != nil {
+		return nil, fmt.Errorf("common piece %s: %w", entry.Name, err)
+	}
+	if !pm.Supports(templateName) {
+		return nil, fmt.Errorf("piece %s does not apply to %s", entry.Name, templateName)
+	}
+	commit := ""
+	if sha, err := source.ResolveRef(src, ref, ""); err == nil {
+		commit = sha
+	}
+	name := entry.Name
+	if name == "" {
+		name = pm.Name
+	}
+	return &Resolved{
+		Name: name, Manifest: pm, Files: files, Commit: commit, Common: true,
+		Source: source.FormatSource(src, ref, entry.Path),
+	}, nil
+}
+
+// Available lists everything a project can adopt: the pieces its form
+// ships plus the common pieces of the registry that support its template.
+// Form-local pieces win on a name clash (ADR-0016).
+func Available(formFiles *source.FileSet, reg *catalog.Registry, ans answers.Answers) []Info {
+	out := List(formFiles, ans)
+	seen := map[string]bool{}
+	for _, i := range out {
+		seen[i.Name] = true
+	}
+	if reg == nil {
+		return out
+	}
+	applied := map[string]bool{}
+	for _, p := range ans.Pieces {
+		applied[p.Name] = true
+	}
+	for _, entry := range reg.Pieces {
+		if seen[entry.Name] {
+			continue
+		}
+		res, err := FetchCommon(entry, ans.Template.Name)
+		if err != nil {
+			continue // incompatible or unreachable: simply not offered
+		}
+		seen[res.Name] = true
+		out = append(out, Info{
+			Name:        res.Name,
+			Description: res.Manifest.Description,
+			Applied:     applied[res.Name],
+			Common:      true,
+		})
+	}
+	return out
+}
+
+// Resolve finds one piece by name for a project: form-local first, then
+// the registry's common pieces.
+func Resolve(name string, formFiles *source.FileSet, formSource string,
+	reg *catalog.Registry, ans answers.Answers) (*Resolved, error) {
+	if files, err := Extract(formFiles, name); err == nil {
+		pm, err := ManifestOf(files)
+		if err != nil {
+			return nil, err
+		}
+		src := formSource
+		if src != "" && src != "local" {
+			src += "/pieces/" + name
+		}
+		return &Resolved{Name: name, Manifest: pm, Files: files, Source: src}, nil
+	}
+	// Several entries may share a name with disjoint applies_to — one
+	// implementation per ecosystem — so try them all and keep the one
+	// that supports this template (ADR-0016).
+	var lastErr error
+	if reg != nil {
+		for _, entry := range reg.Pieces {
+			if entry.Name != name {
+				continue
+			}
+			res, err := FetchCommon(entry, ans.Template.Name)
+			if err == nil {
+				return res, nil
+			}
+			lastErr = err
+		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("no piece %q for this project (try 'templetry pieces')", name)
 }
 
 // Result is what Apply did: the piece-owned files written and the resolved

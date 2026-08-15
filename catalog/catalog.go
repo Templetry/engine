@@ -15,6 +15,26 @@ const DefaultRegistryURL = "https://raw.githubusercontent.com/Templetry/catalog/
 type Registry struct {
 	SchemaVersion int      `json:"schema_version"`
 	Parents       []Parent `json:"parents"`
+	// Pieces are common pieces living outside any form (ADR-0016):
+	// additive in registry v2.1, so older registries keep validating.
+	Pieces []CommonPiece `json:"pieces,omitempty"`
+}
+
+// CommonPiece points at a piece directory in a shared repository.
+type CommonPiece struct {
+	Name   string `json:"name"`             // the piece name projects ask for
+	Repo   string `json:"repo"`             // owner/name on GitHub
+	Ref    string `json:"ref"`              // branch or tag
+	Path   string `json:"path"`             // directory holding piece.yml
+	Source string `json:"source,omitempty"` // forge scheme; empty means GitHub with Repo
+}
+
+// SourceRef resolves the piece's forge reference.
+func (c CommonPiece) SourceRef() string {
+	if c.Source != "" {
+		return c.Source
+	}
+	return c.Repo
 }
 
 type Parent struct {

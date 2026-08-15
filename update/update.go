@@ -142,11 +142,17 @@ func loadFormManifest(files *source.FileSet) (*manifest.Manifest, error) {
 }
 
 // renderPiece re-renders one applied piece with its recorded inputs.
+// Common pieces (ADR-0016) live outside the form, so the piece is fetched
+// from the source the answers file recorded for it; form-local pieces are
+// taken from the form files already in hand.
 func renderPiece(formM *manifest.Manifest, formFiles *source.FileSet,
 	applied answers.AppliedPiece, projectVars map[string]string) (*source.FileSet, error) {
 	pieceFiles, err := piece.Extract(formFiles, applied.Name)
 	if err != nil {
-		return nil, err
+		pieceFiles, err = fetchPieceSource(applied)
+		if err != nil {
+			return nil, err
+		}
 	}
 	pm, err := piece.ManifestOf(pieceFiles)
 	if err != nil {
@@ -154,6 +160,18 @@ func renderPiece(formM *manifest.Manifest, formFiles *source.FileSet,
 	}
 	out, _, err := piece.Render(formM, pm, pieceFiles, projectVars, applied.Variables)
 	return out, err
+}
+
+// fetchPieceSource downloads a piece from its own recorded source.
+func fetchPieceSource(applied answers.AppliedPiece) (*source.FileSet, error) {
+	if applied.Source == "" {
+		return nil, fmt.Errorf("piece %s has no recorded source", applied.Name)
+	}
+	src, ref, path, err := source.ParseSourceString(applied.Source)
+	if err != nil {
+		return nil, err
+	}
+	return source.Fetch(src, ref, path, "")
 }
 
 // renderAt renders the template files with the recorded inputs. When src

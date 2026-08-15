@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Templetry/engine/answers"
+	"github.com/Templetry/engine/catalog"
 	"github.com/Templetry/engine/piece"
 	"github.com/Templetry/engine/source"
 )
@@ -30,6 +31,7 @@ func runPieces(args []string) error {
 	}
 	fs := flag.NewFlagSet("pieces", flag.ExitOnError)
 	template := fs.String("template", "", "template directory (for local templates)")
+	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	fs.Parse(args)
 	ans, err := answers.Read(dir)
 	if err != nil {
@@ -39,9 +41,10 @@ func runPieces(args []string) error {
 	if err != nil {
 		return err
 	}
-	infos := piece.List(files, ans)
+	reg, _ := loadRegistryOrNil(*registry)
+	infos := piece.Available(files, reg, ans)
 	if len(infos) == 0 {
-		fmt.Println("this template ships no pieces")
+		fmt.Println("no pieces available for this project")
 		return nil
 	}
 	for _, in := range infos {
@@ -49,10 +52,24 @@ func runPieces(args []string) error {
 		if in.Applied {
 			mark = "*"
 		}
-		fmt.Printf("%s %-24s %s\n", mark, in.Name, in.Description)
+		origin := ""
+		if in.Common {
+			origin = "  (common)"
+		}
+		fmt.Printf("%s %-24s %s%s\n", mark, in.Name, in.Description, origin)
 	}
 	fmt.Println("(* already applied — add with: templetry add <piece>)")
 	return nil
+}
+
+// loadRegistryOrNil resolves the catalog for common-piece discovery;
+// failures are not fatal — the project's own form pieces still work.
+func loadRegistryOrNil(location string) (*catalog.Registry, error) {
+	reg, err := loadRegistry(location)
+	if err != nil {
+		return nil, err
+	}
+	return reg, nil
 }
 
 // runAdd applies one piece to an existing project (ADR-0014).
@@ -69,6 +86,7 @@ func runAdd(args []string) error {
 	}
 	fs := flag.NewFlagSet("add", flag.ExitOnError)
 	template := fs.String("template", "", "template directory (for local templates)")
+	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	var sets multiFlag
 	fs.Var(&sets, "set", "piece variable key=value (repeatable)")
 	fs.Parse(args)
@@ -93,17 +111,15 @@ func runAdd(args []string) error {
 	if err != nil {
 		return err
 	}
-	pieceFiles, err := piece.Extract(files, name)
+	// Form-local first, then the registry's common pieces (ADR-0016).
+	reg, _ := loadRegistryOrNil(*registry)
+	resolved, err := piece.Resolve(name, files, ans.Template.Source, reg, ans)
 	if err != nil {
 		return err
 	}
-	pf := pieceFiles.Get("piece.yml")
-	if pf == nil {
-		pf = pieceFiles.Get("piece.yaml")
-	}
-	pm, err := piece.Load(pf.Data)
-	if err != nil {
-		return err
+	pieceFiles, pm := resolved.Files, resolved.Manifest
+	if resolved.Common {
+		commit = resolved.Commit
 	}
 	pieceVars := map[string]string{}
 	for _, s := range sets {
@@ -119,9 +135,14 @@ func runAdd(args []string) error {
 		return err
 	}
 
-	src := ans.Template.Source
-	if src != "" && src != "local" {
-		src += "/pieces/" + name
+	// A common piece records its own repository, so updates follow it
+	// there rather than looking inside the form (ADR-0016).
+	src := resolved.Source
+	if !resolved.Common {
+		src = ans.Template.Source
+		if src != "" && src != "local" {
+			src += "/pieces/" + name
+		}
 	}
 	ans.Pieces = append(ans.Pieces, answers.AppliedPiece{
 		Name: name, Source: src, Commit: commit,
