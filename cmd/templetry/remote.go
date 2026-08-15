@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Templetry/engine/catalog"
+	"github.com/Templetry/engine/manifest"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
 )
@@ -40,22 +41,71 @@ func loadRegistry(location string) (*catalog.Registry, error) {
 func runList(args []string) error {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
+	tags := fs.Bool("tags", false, "show each form's kinds, languages and frameworks")
+	var kinds, languages, frameworks multiFlag
+	fs.Var(&kinds, "kind", "filter by kind (repeatable): "+strings.Join(manifest.Kinds, ", "))
+	fs.Var(&languages, "language", "filter by language (repeatable)")
+	fs.Var(&frameworks, "framework", "filter by framework (repeatable)")
 	fs.Parse(args)
+
+	for _, k := range kinds {
+		if !manifest.ValidKind(k) {
+			return fmt.Errorf("unknown kind %q (allowed: %s)", k, strings.Join(manifest.Kinds, ", "))
+		}
+	}
+	filter := catalog.Filter{Kinds: kinds, Languages: languages, Frameworks: frameworks}
+
 	reg, err := loadRegistry(*registry)
 	if err != nil {
 		return err
 	}
+	matched := 0
 	for _, p := range reg.Parents {
-		fmt.Printf("%s — %s (%s@%s)\n", p.Key, p.Label, p.Repo, p.Ref)
+		forms := []catalog.Form{}
 		for _, f := range p.Forms {
+			if filter.Match(f) {
+				forms = append(forms, f)
+			}
+		}
+		if len(forms) == 0 {
+			continue
+		}
+		fmt.Printf("%s — %s (%s@%s)\n", p.Key, p.Label, p.Repo, p.Ref)
+		for _, f := range forms {
+			matched++
 			status := f.Status
 			if status == "" {
 				status = "ready"
 			}
 			fmt.Printf("  %-28s %-8s %s\n", p.Key+"/"+f.Form, status, f.Description)
+			if *tags {
+				fmt.Printf("  %-28s %-8s %s\n", "", "", formatTags(f))
+			}
 		}
 	}
+	if matched == 0 && !filter.Empty() {
+		// Say so rather than printing nothing: a form that declares no
+		// taxonomy matches no filter, and silence looks like a broken catalog.
+		fmt.Println("no form matches that filter (forms without a taxonomy never match one)")
+	}
 	return nil
+}
+
+// formatTags renders a form's taxonomy on one line, omitting empty axes.
+func formatTags(f catalog.Form) string {
+	parts := []string{}
+	for _, axis := range []struct {
+		label  string
+		values []string
+	}{{"kind", f.Kinds}, {"lang", f.Languages}, {"fw", f.Frameworks}} {
+		if len(axis.values) > 0 {
+			parts = append(parts, axis.label+": "+strings.Join(axis.values, " "))
+		}
+	}
+	if len(parts) == 0 {
+		return "(no taxonomy)"
+	}
+	return strings.Join(parts, " · ")
 }
 
 func runInit(args []string) error {

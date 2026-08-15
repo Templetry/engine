@@ -10,12 +10,24 @@ import (
 
 // Manifest is the parsed template.yml — Templetry's public API (ADR-0002).
 type Manifest struct {
-	SchemaVersion int        `yaml:"schema_version" json:"schema_version"`
-	Name          string     `yaml:"name" json:"name"`
-	Description   string     `yaml:"description,omitempty" json:"description,omitempty"`
-	Platform      string     `yaml:"platform,omitempty" json:"platform,omitempty"`
-	Framework     string     `yaml:"framework,omitempty" json:"framework,omitempty"`
-	Variables     []Variable `yaml:"variables,omitempty" json:"variables,omitempty"`
+	SchemaVersion int    `yaml:"schema_version" json:"schema_version"`
+	Name          string `yaml:"name" json:"name"`
+	Description   string `yaml:"description,omitempty" json:"description,omitempty"`
+
+	// The taxonomy (ADR-0017). Three independent axes, each a list, because
+	// a form is usually more than one thing: fastapi-users is a backend and
+	// a database schema; a KMP form is multiplatform and android and ios.
+	Kinds      []string `yaml:"kinds,omitempty" json:"kinds,omitempty"`
+	Languages  []string `yaml:"languages,omitempty" json:"languages,omitempty"`
+	Frameworks []string `yaml:"frameworks,omitempty" json:"frameworks,omitempty"`
+
+	// Deprecated: superseded by Kinds/Languages/Frameworks. Still parsed
+	// because the manifest is public API and a field only disappears with a
+	// major; ignored by filtering.
+	Platform  string `yaml:"platform,omitempty" json:"platform,omitempty"`
+	Framework string `yaml:"framework,omitempty" json:"framework,omitempty"`
+
+	Variables []Variable `yaml:"variables,omitempty" json:"variables,omitempty"`
 	Identity      []Rename   `yaml:"identity,omitempty" json:"identity,omitempty"`
 	Features      []Feature  `yaml:"features,omitempty" json:"features,omitempty"`
 	Presets       []Preset   `yaml:"presets,omitempty" json:"presets,omitempty"`
@@ -70,6 +82,50 @@ var (
 	nameRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 )
 
+// Kinds is the closed vocabulary of the taxonomy's primary axis (ADR-0017).
+// Closed on purpose: a filter axis only works if two templates meaning the
+// same thing use the same word, and a typo must not invent a tenth category.
+// Adding a value is a deliberate act, recorded in the ADR.
+var Kinds = []string{
+	"frontend", "backend", "database", "infra",
+	"multiplatform", "android", "ios", "desktop", "cli",
+}
+
+// ValidKind reports whether k belongs to the vocabulary.
+func ValidKind(k string) bool { return contains(Kinds, k) }
+
+// validateTaxonomy enforces ADR-0017: a closed vocabulary for kinds, and
+// kebab-case shape for the open axes — which is what stops "C#", "csharp"
+// and "c-sharp" from becoming three different languages.
+func (m *Manifest) validateTaxonomy() error {
+	seen := map[string]bool{}
+	for _, k := range m.Kinds {
+		if !ValidKind(k) {
+			return fmt.Errorf("unknown kind %q (allowed: %v)", k, Kinds)
+		}
+		if seen[k] {
+			return fmt.Errorf("duplicate kind %q", k)
+		}
+		seen[k] = true
+	}
+	for _, axis := range []struct {
+		name   string
+		values []string
+	}{{"language", m.Languages}, {"framework", m.Frameworks}} {
+		seen := map[string]bool{}
+		for _, v := range axis.values {
+			if !nameRe.MatchString(v) {
+				return fmt.Errorf("%s %q must be kebab-case", axis.name, v)
+			}
+			if seen[v] {
+				return fmt.Errorf("duplicate %s %q", axis.name, v)
+			}
+			seen[v] = true
+		}
+	}
+	return nil
+}
+
 // Load parses and validates a template.yml document. A UTF-8 BOM (common
 // from Windows editors) is tolerated — without stripping it, the first key
 // silently fails to parse (study I §6).
@@ -92,6 +148,9 @@ func (m *Manifest) Validate() error {
 	}
 	if !nameRe.MatchString(m.Name) {
 		return fmt.Errorf("name %q must be kebab-case", m.Name)
+	}
+	if err := m.validateTaxonomy(); err != nil {
+		return err
 	}
 	varKeys := map[string]bool{}
 	for _, v := range m.Variables {

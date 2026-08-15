@@ -64,6 +64,51 @@ type Form struct {
 	Path        string `json:"path"`
 	Status      string `json:"status"` // ready | planned
 	Description string `json:"description,omitempty"`
+	// The taxonomy, copied from the form's manifest (registry v2.2,
+	// ADR-0017). It lives here because filtering reads the registry, which
+	// is fetched anyway — reading 22 manifests would turn a listing into 22
+	// downloads. Additive, so older registries keep validating.
+	Kinds      []string `json:"kinds,omitempty"`
+	Languages  []string `json:"languages,omitempty"`
+	Frameworks []string `json:"frameworks,omitempty"`
+}
+
+// Filter selects forms by taxonomy: OR within an axis, AND across axes, so
+// "--kind backend --kind cli --language go" means (backend or cli) and go.
+// An empty axis does not constrain.
+type Filter struct {
+	Kinds      []string
+	Languages  []string
+	Frameworks []string
+}
+
+// Empty reports whether the filter would select everything.
+func (f Filter) Empty() bool {
+	return len(f.Kinds) == 0 && len(f.Languages) == 0 && len(f.Frameworks) == 0
+}
+
+// Match reports whether a form satisfies the filter.
+func (f Filter) Match(form Form) bool {
+	return anyOf(f.Kinds, form.Kinds) &&
+		anyOf(f.Languages, form.Languages) &&
+		anyOf(f.Frameworks, form.Frameworks)
+}
+
+// anyOf is true when the form carries at least one of the wanted values, or
+// when nothing is wanted. A form with no taxonomy matches no filter, which
+// is honest: it never claimed to be anything.
+func anyOf(wanted, have []string) bool {
+	if len(wanted) == 0 {
+		return true
+	}
+	for _, w := range wanted {
+		for _, h := range have {
+			if strings.EqualFold(w, h) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Parse decodes and validates a registry document.
