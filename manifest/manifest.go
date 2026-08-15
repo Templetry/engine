@@ -28,10 +28,10 @@ type Manifest struct {
 	Framework string `yaml:"framework,omitempty" json:"framework,omitempty"`
 
 	Variables []Variable `yaml:"variables,omitempty" json:"variables,omitempty"`
-	Identity      []Rename   `yaml:"identity,omitempty" json:"identity,omitempty"`
-	Features      []Feature  `yaml:"features,omitempty" json:"features,omitempty"`
-	Presets       []Preset   `yaml:"presets,omitempty" json:"presets,omitempty"`
-	Verify        *Verify    `yaml:"verify,omitempty" json:"verify,omitempty"`
+	Identity  []Rename   `yaml:"identity,omitempty" json:"identity,omitempty"`
+	Features  []Feature  `yaml:"features,omitempty" json:"features,omitempty"`
+	Presets   []Preset   `yaml:"presets,omitempty" json:"presets,omitempty"`
+	Verify    *Verify    `yaml:"verify,omitempty" json:"verify,omitempty"`
 }
 
 type Variable struct {
