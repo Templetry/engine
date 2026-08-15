@@ -2,7 +2,7 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🚀 [v1.7.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
+**Status: 🚀 [v1.9.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
 
 Since v1.0: `templetry update` (three-way merge), `templetry verify` in Docker, **lazy pieces** (`pieces`/`add`), YAML/TOML patches, feature `requires`/`conflicts` and `presets`, **multi-forge template hosting** (`github:`, `gitlab:`, `gitea:` source schemes) and the `templetry-mcp` server. Output paths are hardened against escapes and platform quirks; the directive scanner is fuzz-tested.
 
@@ -54,11 +54,15 @@ templetry add axios-api ./my-app --set api_base=/v2  # adopt a piece into a livi
 
 ## MCP server (AI agents)
 
-`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes five tools: `list_templates`, `get_form_schema`, `plan`, `render` and `update`, so an agent can browse the catalog, scaffold a ready-to-work project and keep it updated. Example Claude Code registration:
+`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Example Claude Code registration:
 
 ```sh
 claude mcp add templetry -- templetry-mcp
 ```
+
+## Documentation
+
+Usage guides live in the wiki: [getting started](https://github.com/Templetry/wiki/blob/main/guide/getting-started.md), [using templates](https://github.com/Templetry/wiki/blob/main/guide/using-templates.md), [using pieces](https://github.com/Templetry/wiki/blob/main/guide/using-pieces.md), [keeping projects updated](https://github.com/Templetry/wiki/blob/main/guide/keeping-updated.md), [authoring templates](https://github.com/Templetry/wiki/blob/main/guide/authoring-templates.md), [AI agents and MCP](https://github.com/Templetry/wiki/blob/main/guide/ai-agents.md). Normative behaviour is in [`spec/`](https://github.com/Templetry/wiki/tree/main/spec).
 
 ## Development
 
