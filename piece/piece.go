@@ -176,34 +176,55 @@ type Result struct {
 	Variables map[string]string
 }
 
+// ManifestOf reads the piece manifest out of an extracted piece FileSet.
+func ManifestOf(pieceFiles *source.FileSet) (*Manifest, error) {
+	f := pieceFiles.Get("piece.yml")
+	if f == nil {
+		f = pieceFiles.Get("piece.yaml")
+	}
+	if f == nil {
+		return nil, fmt.Errorf("piece has no piece.yml")
+	}
+	return Load(f.Data)
+}
+
+// Render produces the piece's files as they would land in the project,
+// without touching disk. Shared by Apply and by the update cycle.
+func Render(formM *manifest.Manifest, pm *Manifest, pieceFiles *source.FileSet,
+	projectVars, pieceVars map[string]string) (*source.FileSet, map[string]string, error) {
+	// Resolve the piece's own variables with the manifest machinery.
+	holder := &manifest.Manifest{Variables: pm.Variables}
+	resolved, err := holder.Resolve(manifest.Inputs{Variables: pieceVars})
+	if err != nil {
+		return nil, nil, fmt.Errorf("piece %s: %w", pm.Name, err)
+	}
+	for k := range resolved.Variables {
+		if _, clash := projectVars[k]; clash {
+			return nil, nil, fmt.Errorf("piece %s: variable %q clashes with a template variable", pm.Name, k)
+		}
+	}
+	plan, err := planner.BuildPiece(formM, projectVars, resolved.Variables, pm.Identity, pieceFiles)
+	if err != nil {
+		return nil, nil, err
+	}
+	rendered, err := render.Apply(plan, pieceFiles)
+	if err != nil {
+		return nil, nil, err
+	}
+	rendered.Delete(answers.Path) // a piece is not a project
+	return rendered, resolved.Variables, nil
+}
+
 // Apply renders the piece with the form's identity over the project's
 // recorded variables plus the piece's own, then writes it into the
 // project. Piece files must not collide with existing paths (decoupling
 // is enforced); declared patches are the only touch on shared files.
 func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles *source.FileSet, projectVars, pieceVars map[string]string) (Result, error) {
 	none := Result{}
-
-	// Resolve the piece's own variables with the manifest machinery.
-	holder := &manifest.Manifest{Variables: pm.Variables}
-	resolved, err := holder.Resolve(manifest.Inputs{Variables: pieceVars})
-	if err != nil {
-		return none, fmt.Errorf("piece %s: %w", pm.Name, err)
-	}
-	for k := range resolved.Variables {
-		if _, clash := projectVars[k]; clash {
-			return none, fmt.Errorf("piece %s: variable %q clashes with a template variable", pm.Name, k)
-		}
-	}
-
-	plan, err := planner.BuildPiece(formM, projectVars, resolved.Variables, pm.Identity, pieceFiles)
+	rendered, resolvedVars, err := Render(formM, pm, pieceFiles, projectVars, pieceVars)
 	if err != nil {
 		return none, err
 	}
-	rendered, err := render.Apply(plan, pieceFiles)
-	if err != nil {
-		return none, err
-	}
-	rendered.Delete(answers.Path) // a piece is not a project
 
 	// Enforced decoupling: no rendered path may already exist.
 	for _, p := range rendered.Paths() {
@@ -233,7 +254,7 @@ func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles
 	for k, v := range projectVars {
 		merged[k] = v
 	}
-	for k, v := range resolved.Variables {
+	for k, v := range resolvedVars {
 		merged[k] = v
 	}
 	for _, patch := range pm.Patches {
@@ -250,5 +271,5 @@ func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles
 			return none, err
 		}
 	}
-	return Result{Files: written, Variables: resolved.Variables}, nil
+	return Result{Files: written, Variables: resolvedVars}, nil
 }

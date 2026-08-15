@@ -14,6 +14,7 @@ import (
 
 	"github.com/Templetry/engine/answers"
 	"github.com/Templetry/engine/manifest"
+	"github.com/Templetry/engine/piece"
 	"github.com/Templetry/engine/planner"
 	"github.com/Templetry/engine/render"
 	"github.com/Templetry/engine/source"
@@ -29,7 +30,8 @@ func ReadAnswers(dir string) (Answers, error) { return answers.Read(dir) }
 // Entry is one file the update would touch.
 type Entry struct {
 	Path   string `json:"path"`
-	Status string `json:"status"` // added | modified | merged | conflict
+	Status string `json:"status"`          // added | modified | merged | conflict
+	Piece  string `json:"piece,omitempty"` // the piece that owns it, if any
 }
 
 // Preview is a prepared update: what would change, plus the rendered
@@ -44,6 +46,8 @@ type Preview struct {
 
 	Files  *source.FileSet   `json:"-"`
 	Merged map[string][]byte `json:"-"`
+
+	answers answers.Answers
 }
 
 // Prepare re-renders a project's template at its current head with the
@@ -70,20 +74,86 @@ func Prepare(dir, token string) (*Preview, error) {
 
 	// Base render: the template at the recorded commit, same inputs — the
 	// third band for real merges when both sides touched a file.
-	var baseRendered *source.FileSet
+	var baseFiles, baseRendered *source.FileSet
 	if ans.Template.Commit != "" {
-		if baseFiles, err := source.Fetch(src, ans.Template.Commit, path, token); err == nil {
-			baseRendered, _, _ = renderAt(baseFiles, ans, "", nil, "")
+		if bf, err := source.Fetch(src, ans.Template.Commit, path, token); err == nil {
+			baseFiles = bf
+			baseRendered, _, _ = renderAt(bf, ans, "", nil, "")
 		}
+	}
+
+	// Applied pieces ride the same cycle: re-rendered at head with their
+	// recorded inputs, merged into the same trees, so a project updates
+	// its template AND everything it adopted (ADR-0014's drift anchor).
+	formM, mErr := loadFormManifest(files)
+	pieceOwners := map[string]string{}
+	if mErr == nil {
+		for _, applied := range ans.Pieces {
+			headFiles, err := renderPiece(formM, files, applied, ans.Variables)
+			if err != nil {
+				continue // a piece removed upstream simply stops updating
+			}
+			for _, p := range headFiles.Paths() {
+				rendered.Put(p, headFiles.Get(p))
+				pieceOwners[p] = applied.Name
+			}
+			if baseFiles != nil && baseRendered != nil {
+				if baseM, err := loadFormManifest(baseFiles); err == nil {
+					if bp, err := renderPiece(baseM, baseFiles, applied, ans.Variables); err == nil {
+						for _, p := range bp.Paths() {
+							baseRendered.Put(p, bp.Get(p))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// The answers file is provenance, not content: it is rewritten from
+	// the record after applying, never merged — a conflict there would
+	// corrupt the very file the whole cycle depends on.
+	rendered.Delete(answers.Path)
+	if baseRendered != nil {
+		baseRendered.Delete(answers.Path)
 	}
 
 	out := &Preview{
 		Dir: dir, Template: ans.Template.Name,
 		OldCommit: ans.Template.Commit, NewCommit: sourceCommit,
-		Files: rendered,
+		Files: rendered, answers: ans,
 	}
 	out.Entries, out.Unchanged, out.Merged = diffAgainstDisk(dir, rendered, baseRendered)
+	for i, e := range out.Entries {
+		out.Entries[i].Piece = pieceOwners[e.Path]
+	}
 	return out, nil
+}
+
+// loadFormManifest reads a form's manifest from its files.
+func loadFormManifest(files *source.FileSet) (*manifest.Manifest, error) {
+	f := files.Get("template.yml")
+	if f == nil {
+		f = files.Get("template.yaml")
+	}
+	if f == nil {
+		return nil, fmt.Errorf("the template has no template.yml")
+	}
+	return manifest.Load(f.Data)
+}
+
+// renderPiece re-renders one applied piece with its recorded inputs.
+func renderPiece(formM *manifest.Manifest, formFiles *source.FileSet,
+	applied answers.AppliedPiece, projectVars map[string]string) (*source.FileSet, error) {
+	pieceFiles, err := piece.Extract(formFiles, applied.Name)
+	if err != nil {
+		return nil, err
+	}
+	pm, err := piece.ManifestOf(pieceFiles)
+	if err != nil {
+		return nil, err
+	}
+	out, _, err := piece.Render(formM, pm, pieceFiles, projectVars, applied.Variables)
+	return out, err
 }
 
 // renderAt renders the template files with the recorded inputs. When src
@@ -225,6 +295,20 @@ func (p *Preview) Apply() (int, error) {
 			return written, err
 		}
 		written++
+	}
+	// Move the anchors forward: the template and every piece that rode
+	// this update now point at the commit they were re-rendered from.
+	// Rewritten from the record, never merged, so the pieces list and the
+	// recorded inputs always survive an update.
+	if p.NewCommit != "" && p.answers.Template.Name != "" {
+		record := p.answers
+		record.Template.Commit = p.NewCommit
+		for i := range record.Pieces {
+			record.Pieces[i].Commit = p.NewCommit
+		}
+		if err := answers.Write(p.Dir, record); err != nil {
+			return written, err
+		}
 	}
 	return written, nil
 }

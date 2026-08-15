@@ -275,14 +275,18 @@ func runVerify(args []string) error {
 // existing project: re-render at the template's head with the recorded
 // inputs, diff, three-way merge, write.
 func runUpdate(args []string) error {
+	// The directory is positional and may come first; Go's flag package
+	// stops at the first non-flag argument, so pull it out before parsing
+	// or "update <dir> --apply" would silently preview instead of writing.
+	dir := "."
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		dir = args[0]
+		args = args[1:]
+	}
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	apply := fs.Bool("apply", false, "write the update (default: preview only)")
 	token := fs.String("token", "", "GitHub token for private templates / rate limits")
 	fs.Parse(args)
-	dir := fs.Arg(0)
-	if dir == "" {
-		dir = "."
-	}
 
 	p, err := update.Prepare(dir, *token)
 	if err != nil {
@@ -300,7 +304,11 @@ func runUpdate(args []string) error {
 		return nil
 	}
 	for _, e := range p.Entries {
-		fmt.Printf("  %-9s %s\n", e.Status, e.Path)
+		owner := ""
+		if e.Piece != "" {
+			owner = "  [" + e.Piece + "]"
+		}
+		fmt.Printf("  %-9s %s%s\n", e.Status, e.Path, owner)
 	}
 	fmt.Printf("  %d unchanged\n", p.Unchanged)
 	if !*apply {
