@@ -2,9 +2,9 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🚀 [v1.9.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
+**Status: 🚀 [v1.10.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
 
-Since v1.0: `templetry update` (three-way merge), `templetry verify` in Docker, **lazy pieces** (`pieces`/`add`), YAML/TOML patches, feature `requires`/`conflicts` and `presets`, **multi-forge template hosting** (`github:`, `gitlab:`, `gitea:` source schemes) and the `templetry-mcp` server. Output paths are hardened against escapes and platform quirks; the directive scanner is fuzz-tested.
+Since v1.0: `templetry update` (three-way merge), `templetry verify` in Docker, **lazy pieces** (`pieces`/`add`), YAML/TOML patches, feature `requires`/`conflicts` and `presets`, **multi-forge template hosting** (`github:`, `gitlab:`, `gitea:` source schemes) and the `templetry-mcp` server. Since v1.10 forms carry a taxonomy (`kinds`/`languages`/`frameworks`) and `templetry list` filters on it. Output paths are hardened against escapes and platform quirks; the directive scanner is fuzz-tested.
 
 ## Principles (from the [wiki](https://github.com/Templetry/wiki))
 
@@ -42,6 +42,7 @@ Then:
 
 ```sh
 templetry list                                  # browse the official catalog
+templetry list --kind database --language go --tags   # filter it
 templetry init kmp/single-module --out my-app \
   --set "project_name=My App" --set "base_package=com.me.myapp"
 templetry plan --template <dir> --set key=value --feature name
