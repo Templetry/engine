@@ -364,14 +364,20 @@ func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles
 
 	// Enforced decoupling: no rendered path may already exist.
 	for _, p := range rendered.Paths() {
-		full := filepath.Join(projectDir, filepath.FromSlash(p))
+		full, err := render.Contain(projectDir, p)
+		if err != nil {
+			return none, fmt.Errorf("piece %s: %w", pm.Name, err)
+		}
 		if _, err := os.Stat(full); err == nil {
 			return none, fmt.Errorf("piece %s: %s already exists in the project — pieces may not overwrite files", pm.Name, p)
 		}
 	}
 	written := []string{}
 	for _, p := range rendered.Paths() {
-		full := filepath.Join(projectDir, filepath.FromSlash(p))
+		full, err := render.Contain(projectDir, p)
+		if err != nil {
+			return none, fmt.Errorf("piece %s: %w", pm.Name, err)
+		}
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return none, err
 		}
@@ -394,7 +400,10 @@ func Apply(projectDir string, formM *manifest.Manifest, pm *Manifest, pieceFiles
 		merged[k] = v
 	}
 	for _, patch := range pm.Patches {
-		full := filepath.Join(projectDir, filepath.FromSlash(patch.File))
+		full, err := render.Contain(projectDir, patch.File)
+		if err != nil {
+			return none, fmt.Errorf("piece %s: %w", pm.Name, err)
+		}
 		doc, err := os.ReadFile(full)
 		if err != nil {
 			return none, fmt.Errorf("piece %s: patch target %s: %w", pm.Name, patch.File, err)

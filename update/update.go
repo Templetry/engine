@@ -305,7 +305,10 @@ func (p *Preview) Apply() (int, error) {
 		if err != nil {
 			continue
 		}
-		full := filepath.Join(p.Dir, filepath.FromSlash(e.Path))
+		full, err := render.Contain(p.Dir, e.Path)
+		if err != nil {
+			return written, err
+		}
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return written, err
 		}
