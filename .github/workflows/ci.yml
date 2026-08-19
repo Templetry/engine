@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  # Render and build only; nothing here writes to the repository.
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
