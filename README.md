@@ -74,4 +74,4 @@ go test ./...
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md) — free for any noncommercial purpose; commercial use requires the author's permission. The templates and the desktop app live in their own repos under MIT.
+[Apache License 2.0](LICENSE) — use it for anything, including commercially, with an explicit patent grant. The templates and the desktop app live in their own repos under MIT.
