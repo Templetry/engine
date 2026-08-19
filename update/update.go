@@ -216,7 +216,13 @@ func diffAgainstDisk(dir string, rendered, baseRendered *source.FileSet) ([]Entr
 	merged := map[string][]byte{}
 	for _, rp := range rendered.Paths() {
 		newData := normEOL(rendered.Get(rp).Data)
-		current, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rp)))
+		// Reading outside the project would put a file the user never asked
+		// about into a diff they are about to review.
+		full, err := render.Contain(dir, rp)
+		if err != nil {
+			continue
+		}
+		current, err := os.ReadFile(full)
 		if err != nil {
 			entries = append(entries, Entry{Path: rp, Status: "added"})
 			continue
