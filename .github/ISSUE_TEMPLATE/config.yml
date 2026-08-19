@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Templetry/engine/discussions
+    about: Anything that is not yet a bug or a concrete proposal.
+  - name: Security vulnerability
+    url: https://github.com/Templetry/.github/blob/main/SECURITY.md
+    about: Report privately. Never as a public issue.
+  - name: How it all fits together
+    url: https://github.com/Templetry/wiki/blob/main/adr/
+    about: Nineteen ADRs on why the project is shaped the way it is.

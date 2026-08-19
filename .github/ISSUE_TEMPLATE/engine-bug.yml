@@ -1,0 +1,54 @@
+name: The engine is wrong
+description: The CLI, the MCP server, the library or the desktop app misbehaves
+title: "engine: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - templetry CLI
+        - templetry-mcp server
+        - Go library
+        - Desktop app
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The smallest sequence that shows it. A template that reproduces it is gold.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected, and what happened instead
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "engine v1.10.1 / desktop v1.8.1"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: "macOS 15 arm64"
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        If this is a way to make Templetry write outside the output directory,
+        do not file it here — see the [security policy](https://github.com/Templetry/.github/blob/main/SECURITY.md).
