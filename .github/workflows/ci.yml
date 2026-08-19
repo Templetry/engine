@@ -25,3 +25,39 @@ jobs:
         run: go build ./...
       - name: test
         run: go test ./...
+
+  # The install script is the only path most macOS and Linux users will take,
+  # and it is the one thing here that cannot be tested by building: it depends
+  # on published release assets, on uname, and on where a runner lets you
+  # write. So it runs for real, on both systems, against the live release.
+  install-script:
+    name: install.sh (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install into a directory of our own
+        env:
+          TEMPLETRY_BIN_DIR: ${{ runner.temp }}/bin
+        run: sh ./install.sh
+
+      - name: Both binaries run
+        run: |
+          "$RUNNER_TEMP/bin/templetry" version
+          "$RUNNER_TEMP/bin/templetry-mcp" --help > /dev/null 2>&1 || true
+          test -x "$RUNNER_TEMP/bin/templetry-mcp"
+
+      - name: It refuses a tag that does not exist, instead of installing nothing
+        env:
+          TEMPLETRY_VERSION: v0.0.0-does-not-exist
+          TEMPLETRY_BIN_DIR: ${{ runner.temp }}/bin2
+        run: |
+          if sh ./install.sh; then
+            echo "::error::the script reported success for a nonexistent release"
+            exit 1
+          fi
+          test ! -e "$RUNNER_TEMP/bin2/templetry"
