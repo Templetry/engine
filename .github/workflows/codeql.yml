@@ -1,0 +1,38 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly: most of what this finds arrives with a new query pack, not with
+    # a commit here.
+    - cron: "0 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      # The templates this engine ships are scanned by their own workflows;
+      # the engine that writes files to paths derived from user input was not
+      # scanned at all, which is the wrong way round.
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: go
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v4
