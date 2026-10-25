@@ -36,7 +36,7 @@ Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/en
 
 ## Install
 
-Pick one; every option gives you `templetry` and `templetry-mcp`:
+Pick one (Homebrew, Scoop, the install script and the release archives also ship `templetry-mcp`):
 
 1. **Homebrew** (macOS, Linux) — `brew install Templetry/tap/templetry` ([tap](https://github.com/Templetry/homebrew-tap)).
 2. **Scoop** (Windows) — `scoop bucket add templetry https://github.com/Templetry/scoop-bucket` then `scoop install templetry` ([bucket](https://github.com/Templetry/scoop-bucket)).
