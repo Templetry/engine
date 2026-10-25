@@ -59,6 +59,7 @@ jobs:
       - name: Install into a directory of our own
         env:
           TEMPLETRY_BIN_DIR: ${{ runner.temp }}/bin
+          GITHUB_TOKEN: ${{ github.token }}
         run: sh ./install.sh
 
       - name: Both binaries run

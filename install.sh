@@ -52,7 +52,11 @@ version="${TEMPLETRY_VERSION-}"
 if [ -z "$version" ]; then
   step "Looking up the latest release"
   # Read the tag without needing jq: the field is on its own in the JSON.
-  version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+  # Shared CI runners exhaust the anonymous API quota (403); a token, when the
+  # caller has one, lifts it. Nothing else here talks to the API.
+  auth="${GITHUB_TOKEN-${GH_TOKEN-}}"
+  version=$(curl -fsSL ${auth:+-H "Authorization: Bearer $auth"} \
+      "https://api.github.com/repos/$REPO/releases/latest" \
     | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' \
     | head -1)
   [ -n "$version" ] || die "could not determine the latest release. Set TEMPLETRY_VERSION to install a specific tag."
