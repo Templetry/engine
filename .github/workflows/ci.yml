@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A weekly run keeps the toolchain, actions and install script honest even
+  # when nothing is pushed for a while.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   # Render and build only; nothing here writes to the repository.
@@ -24,7 +29,18 @@ jobs:
       - name: build
         run: go build ./...
       - name: test
-        run: go test ./...
+        run: go test -race ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15
 
   # The install script is the only path most macOS and Linux users will take,
   # and it is the one thing here that cannot be tested by building: it depends

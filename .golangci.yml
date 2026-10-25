@@ -1,0 +1,14 @@
+# golangci-lint v2 configuration: the standard linter set, with errcheck told
+# about the idioms this code base uses on purpose (deferred Close/RemoveAll on
+# temporary resources, flag sets created with flag.ExitOnError).
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*compress/gzip.Reader).Close
+        - os.RemoveAll
+        - (*flag.FlagSet).Parse
