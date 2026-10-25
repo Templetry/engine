@@ -2,7 +2,11 @@
 
 The core of [Templetry](https://github.com/Templetry): a pure Go library + thin CLI that renders ready-to-work repositories from compilable templates.
 
-**Status: 🚀 [v1.10.0](https://github.com/Templetry/engine/releases/latest)** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
+[![CI](https://github.com/Templetry/engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Templetry/engine/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Templetry/engine)](https://github.com/Templetry/engine/releases/latest)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+**Status: 🚀 stable v1 ([latest release](https://github.com/Templetry/engine/releases/latest))** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
 
 Since v1.0: `templetry update` (three-way merge), `templetry verify` in Docker, **lazy pieces** (`pieces`/`add`), YAML/TOML patches, feature `requires`/`conflicts` and `presets`, **multi-forge template hosting** (`github:`, `gitlab:`, `gitea:` source schemes) and the `templetry-mcp` server. Since v1.10 forms carry a taxonomy (`kinds`/`languages`/`frameworks`) and `templetry list` filters on it. Output paths are hardened against escapes and platform quirks; the directive scanner is fuzz-tested.
 
@@ -32,11 +36,14 @@ Design rationale: [study I](https://github.com/Templetry/wiki/blob/main/study/en
 
 ## Install
 
-Three ways, pick one:
+Pick one; every option gives you `templetry` and `templetry-mcp`:
 
-1. **Binary** — download your platform's executable from [Releases](https://github.com/Templetry/engine/releases), rename it to `templetry` (or `templetry.exe`) and put it on your `PATH`.
-2. **Go toolchain** — `go install github.com/Templetry/engine/cmd/templetry@latest` (installs to `$(go env GOPATH)/bin`).
-3. **From source** — clone and `go build -o templetry ./cmd/templetry`.
+1. **Homebrew** (macOS, Linux) — `brew install Templetry/tap/templetry` ([tap](https://github.com/Templetry/homebrew-tap)).
+2. **Scoop** (Windows) — `scoop bucket add templetry https://github.com/Templetry/scoop-bucket` then `scoop install templetry` ([bucket](https://github.com/Templetry/scoop-bucket)).
+3. **Install script** (macOS, Linux) — `curl -fsSL https://raw.githubusercontent.com/Templetry/engine/main/install.sh | sh` (see [`install.sh`](install.sh); `TEMPLETRY_VERSION` pins a tag, `TEMPLETRY_BIN_DIR` picks the folder).
+4. **Binary** — download your platform's executable from [Releases](https://github.com/Templetry/engine/releases), rename it to `templetry` (or `templetry.exe`) and put it on your `PATH`.
+5. **Go toolchain** — `go install github.com/Templetry/engine/cmd/templetry@latest` (installs to `$(go env GOPATH)/bin`).
+6. **From source** — clone and `go build -o templetry ./cmd/templetry`.
 
 Then:
 
