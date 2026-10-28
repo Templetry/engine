@@ -245,6 +245,10 @@ func diffAgainstDisk(dir string, rendered, baseRendered *source.FileSet) ([]Entr
 		}
 		m, conflicts, err := gitMergeFile(cur, base, newData)
 		if err != nil {
+			// No merge result (git cannot merge binary content, for one):
+			// report the conflict and keep the user's bytes, so Apply
+			// never replaces their file with an empty or foreign one.
+			merged[rp] = current
 			entries = append(entries, Entry{Path: rp, Status: "conflict"})
 			continue
 		}
@@ -280,7 +284,9 @@ func gitMergeFile(ours, base, theirs []byte) ([]byte, int, error) {
 	out, err := cmd.Output()
 	conflicts := 0
 	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() > 0 {
+		// The exit status is the number of conflicts (capped at 127); git
+		// reports its own errors, such as binary input, as -1, seen as 255.
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() > 0 && ee.ExitCode() < 128 {
 			conflicts = ee.ExitCode()
 		} else {
 			return nil, 0, err
