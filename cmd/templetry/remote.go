@@ -38,15 +38,17 @@ func loadRegistry(location string) (*catalog.Registry, error) {
 	return catalog.Parse(data)
 }
 
-func runList(args []string) error {
-	fs := flag.NewFlagSet("list", flag.ExitOnError)
+func runList(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	tags := fs.Bool("tags", false, "show each form's kinds, languages and frameworks")
 	var kinds, languages, frameworks multiFlag
 	fs.Var(&kinds, "kind", "filter by kind (repeatable): "+strings.Join(manifest.Kinds, ", "))
 	fs.Var(&languages, "language", "filter by language (repeatable)")
 	fs.Var(&frameworks, "framework", "filter by framework (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 
 	for _, k := range kinds {
 		if !manifest.ValidKind(k) {
@@ -70,23 +72,23 @@ func runList(args []string) error {
 		if len(forms) == 0 {
 			continue
 		}
-		fmt.Printf("%s — %s (%s@%s)\n", p.Key, p.Label, p.Repo, p.Ref)
+		fmt.Fprintf(stdout, "%s — %s (%s@%s)\n", p.Key, p.Label, p.Repo, p.Ref)
 		for _, f := range forms {
 			matched++
 			status := f.Status
 			if status == "" {
 				status = "ready"
 			}
-			fmt.Printf("  %-28s %-8s %s\n", p.Key+"/"+f.Form, status, f.Description)
+			fmt.Fprintf(stdout, "  %-28s %-8s %s\n", p.Key+"/"+f.Form, status, f.Description)
 			if *tags {
-				fmt.Printf("  %-28s %-8s %s\n", "", "", formatTags(f))
+				fmt.Fprintf(stdout, "  %-28s %-8s %s\n", "", "", formatTags(f))
 			}
 		}
 	}
 	if matched == 0 && !filter.Empty() {
 		// Say so rather than printing nothing: a form that declares no
 		// taxonomy matches no filter, and silence looks like a broken catalog.
-		fmt.Println("no form matches that filter (forms without a taxonomy never match one)")
+		fmt.Fprintln(stdout, "no form matches that filter (forms without a taxonomy never match one)")
 	}
 	return nil
 }
@@ -108,13 +110,13 @@ func formatTags(f catalog.Form) string {
 	return strings.Join(parts, " · ")
 }
 
-func runInit(args []string) error {
+func runInit(args []string, stdout, stderr io.Writer) error {
 	ref := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		ref = args[0]
 		args = args[1:]
 	}
-	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	out := fs.String("out", "", "output directory")
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	force := fs.Bool("force", false, "write into a non-empty output directory")
@@ -122,7 +124,9 @@ func runInit(args []string) error {
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	if ref == "" {
 		return fmt.Errorf("usage: templetry init <parent>/<form> --out <dir> (try 'templetry list')")
 	}
@@ -146,7 +150,7 @@ func runInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("fetching %s@%s (%s)…\n", src, parent.Ref, form.Path)
+	fmt.Fprintf(stdout, "fetching %s@%s (%s)…\n", src, parent.Ref, form.Path)
 	files, err := source.Fetch(src, parent.Ref, form.Path, os.Getenv("TEMPLETRY_TOKEN"))
 	if err != nil {
 		return err
@@ -169,6 +173,6 @@ func runInit(args []string) error {
 	if err := render.WriteDir(result, *out); err != nil {
 		return err
 	}
-	fmt.Printf("initialized %s -> %s (%d files)\n", ref, *out, result.Len())
+	fmt.Fprintf(stdout, "initialized %s -> %s (%d files)\n", ref, *out, result.Len())
 	return nil
 }

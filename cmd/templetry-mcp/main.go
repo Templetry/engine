@@ -28,9 +28,15 @@ import (
 var version = "1.2.0-dev"
 
 func main() {
-	in := bufio.NewScanner(os.Stdin)
+	serve(os.Stdin, os.Stdout)
+}
+
+// serve answers newline-delimited JSON-RPC requests from r on w until r
+// ends. Lines that are not JSON are skipped; notifications get no reply.
+func serve(r io.Reader, w io.Writer) {
+	in := bufio.NewScanner(r)
 	in.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
-	out := json.NewEncoder(os.Stdout)
+	out := json.NewEncoder(w)
 	for in.Scan() {
 		line := bytes.TrimPrefix(in.Bytes(), []byte{0xEF, 0xBB, 0xBF})
 		if len(line) == 0 {

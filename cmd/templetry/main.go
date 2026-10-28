@@ -3,8 +3,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -21,45 +23,79 @@ import (
 var version = "1.0.0-dev"
 
 func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-	var err error
-	switch os.Args[1] {
-	case "version":
-		fmt.Println("templetry", version)
-	case "plan":
-		err = runPlan(os.Args[2:])
-	case "render":
-		err = runRender(os.Args[2:])
-	case "verify":
-		err = runVerify(os.Args[2:])
-	case "update":
-		err = runUpdate(os.Args[2:])
-	case "pieces":
-		err = runPieces(os.Args[2:])
-	case "add":
-		err = runAdd(os.Args[2:])
-	case "init":
-		err = runInit(os.Args[2:])
-	case "list":
-		err = runList(os.Args[2:])
-	case "help", "-h", "--help":
-		usage()
-	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", os.Args[1])
-		usage()
-		os.Exit(2)
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
+	if code := run(os.Args[1:], os.Stdout, os.Stderr); code != 0 {
+		os.Exit(code)
 	}
 }
 
-func usage() {
-	fmt.Print(`templetry - project scaffolding for every platform, delivered to any forge
+// run dispatches one command line (without the program name) and returns
+// the process exit code: 0 on success, 1 when the command fails, 2 for a
+// usage error.
+func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 1 {
+		usage(stdout)
+		return 2
+	}
+	var err error
+	switch args[0] {
+	case "version":
+		fmt.Fprintln(stdout, "templetry", version)
+	case "plan":
+		err = runPlan(args[1:], stdout, stderr)
+	case "render":
+		err = runRender(args[1:], stdout, stderr)
+	case "verify":
+		err = runVerify(args[1:], stdout, stderr)
+	case "update":
+		err = runUpdate(args[1:], stdout, stderr)
+	case "pieces":
+		err = runPieces(args[1:], stdout, stderr)
+	case "add":
+		err = runAdd(args[1:], stdout, stderr)
+	case "init":
+		err = runInit(args[1:], stdout, stderr)
+	case "list":
+		err = runList(args[1:], stdout, stderr)
+	case "help", "-h", "--help":
+		usage(stdout)
+	default:
+		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
+		usage(stdout)
+		return 2
+	}
+	var code flagExit
+	if errors.As(err, &code) {
+		return int(code)
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "error:", err)
+		return 1
+	}
+	return 0
+}
+
+// flagExit carries the exit status flag.ExitOnError would have used: the
+// flag package has already printed the problem (or the help) to stderr.
+type flagExit int
+
+func (e flagExit) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
+
+// parseFlags parses a subcommand's flags with flag.ExitOnError's
+// observable behaviour — messages on stderr, status 0 for -h and 2 for a
+// bad flag — but returns instead of exiting, so run stays testable.
+func parseFlags(fs *flag.FlagSet, args []string, stderr io.Writer) error {
+	fs.SetOutput(stderr)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return flagExit(0)
+		}
+		return flagExit(2)
+	}
+	return nil
+}
+
+func usage(stdout io.Writer) {
+	fmt.Fprint(stdout, `templetry - project scaffolding for every platform, delivered to any forge
 
 usage:
   templetry list   [--registry <url|file>]
@@ -140,15 +176,17 @@ func buildPlan(templateDir string, in manifest.Inputs) (*ops.Plan, *source.FileS
 	return p, files, nil
 }
 
-func runPlan(args []string) error {
-	fs := flag.NewFlagSet("plan", flag.ExitOnError)
+func runPlan(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
 	template := fs.String("template", "", "template directory")
 	asJSON := fs.Bool("json", false, "emit the plan as JSON")
 	preset := fs.String("preset", "", "named feature combo from the manifest")
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	if *template == "" {
 		return fmt.Errorf("--template is required")
 	}
@@ -162,16 +200,16 @@ func runPlan(args []string) error {
 		return err
 	}
 	if *asJSON {
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(p)
 	}
-	fmt.Print(p.Describe())
+	fmt.Fprint(stdout, p.Describe())
 	return nil
 }
 
-func runRender(args []string) error {
-	fs := flag.NewFlagSet("render", flag.ExitOnError)
+func runRender(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("render", flag.ContinueOnError)
 	template := fs.String("template", "", "template directory")
 	out := fs.String("out", "", "output directory")
 	force := fs.Bool("force", false, "write into a non-empty output directory")
@@ -179,7 +217,9 @@ func runRender(args []string) error {
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	if *template == "" || *out == "" {
 		return fmt.Errorf("--template and --out are required")
 	}
@@ -202,14 +242,14 @@ func runRender(args []string) error {
 	if err := render.WriteDir(result, *out); err != nil {
 		return err
 	}
-	fmt.Printf("rendered %s -> %s (%d files)\n", p.Template, *out, result.Len())
+	fmt.Fprintf(stdout, "rendered %s -> %s (%d files)\n", p.Template, *out, result.Len())
 	return nil
 }
 
 // runVerify renders the template (or takes an existing render via --dir)
 // and executes its manifest's verify command in Docker (ADR-0004).
-func runVerify(args []string) error {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+func runVerify(args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	template := fs.String("template", "", "template directory")
 	dir := fs.String("dir", "", "already-rendered directory to verify (default: render to a temp dir)")
 	keep := fs.Bool("keep", false, "keep the temporary render and print its path")
@@ -217,7 +257,9 @@ func runVerify(args []string) error {
 	var sets, feats multiFlag
 	fs.Var(&sets, "set", "variable value key=value (repeatable)")
 	fs.Var(&feats, "feature", "feature toggle key or key=false (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	if *template == "" {
 		return fmt.Errorf("--template is required")
 	}
@@ -253,7 +295,7 @@ func runVerify(args []string) error {
 			return err
 		}
 		if *keep {
-			fmt.Printf("render kept at %s\n", tmp)
+			fmt.Fprintf(stdout, "render kept at %s\n", tmp)
 		} else {
 			defer os.RemoveAll(tmp)
 		}
@@ -263,18 +305,18 @@ func runVerify(args []string) error {
 		target = tmp
 	}
 
-	fmt.Printf("verify: %s in %s\n", m.Verify.Run, m.Verify.Image)
-	if err := verify.Run(m.Verify.Image, m.Verify.Run, target, os.Stdout, os.Stderr); err != nil {
+	fmt.Fprintf(stdout, "verify: %s in %s\n", m.Verify.Run, m.Verify.Image)
+	if err := verify.Run(m.Verify.Image, m.Verify.Run, target, stdout, stderr); err != nil {
 		return err
 	}
-	fmt.Println("verify: OK")
+	fmt.Fprintln(stdout, "verify: OK")
 	return nil
 }
 
 // runUpdate previews (default) or applies the template update cycle on an
 // existing project: re-render at the template's head with the recorded
 // inputs, diff, three-way merge, write.
-func runUpdate(args []string) error {
+func runUpdate(args []string, stdout, stderr io.Writer) error {
 	// The directory is positional and may come first; Go's flag package
 	// stops at the first non-flag argument, so pull it out before parsing
 	// or "update <dir> --apply" would silently preview instead of writing.
@@ -283,10 +325,12 @@ func runUpdate(args []string) error {
 		dir = args[0]
 		args = args[1:]
 	}
-	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	apply := fs.Bool("apply", false, "write the update (default: preview only)")
 	token := fs.String("token", "", "GitHub token for private templates / rate limits")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 
 	p, err := update.Prepare(dir, *token)
 	if err != nil {
@@ -298,9 +342,9 @@ func runUpdate(args []string) error {
 		}
 		return s
 	}
-	fmt.Printf("template %s · %s -> %s\n", p.Template, short(p.OldCommit), short(p.NewCommit))
+	fmt.Fprintf(stdout, "template %s · %s -> %s\n", p.Template, short(p.OldCommit), short(p.NewCommit))
 	if len(p.Entries) == 0 {
-		fmt.Printf("up to date (%d files unchanged)\n", p.Unchanged)
+		fmt.Fprintf(stdout, "up to date (%d files unchanged)\n", p.Unchanged)
 		return nil
 	}
 	for _, e := range p.Entries {
@@ -308,17 +352,17 @@ func runUpdate(args []string) error {
 		if e.Piece != "" {
 			owner = "  [" + e.Piece + "]"
 		}
-		fmt.Printf("  %-9s %s%s\n", e.Status, e.Path, owner)
+		fmt.Fprintf(stdout, "  %-9s %s%s\n", e.Status, e.Path, owner)
 	}
-	fmt.Printf("  %d unchanged\n", p.Unchanged)
+	fmt.Fprintf(stdout, "  %d unchanged\n", p.Unchanged)
 	if !*apply {
-		fmt.Println("preview only — run again with --apply to write")
+		fmt.Fprintln(stdout, "preview only — run again with --apply to write")
 		return nil
 	}
 	n, err := p.Apply()
 	if err != nil {
 		return err
 	}
-	fmt.Printf("update applied: %d files written — review with git before committing\n", n)
+	fmt.Fprintf(stdout, "update applied: %d files written — review with git before committing\n", n)
 	return nil
 }
