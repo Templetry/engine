@@ -6,6 +6,10 @@ The core of [Templetry](https://github.com/Templetry): a pure Go library + thin 
 [![Latest release](https://img.shields.io/github/v/release/Templetry/engine)](https://github.com/Templetry/engine/releases/latest)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+![templetry init, a user edit, then templetry update merging the template's changes while keeping the edit](docs/demo.svg)
+
+<sub>Scaffold, edit, then update: the template's new commit is merged three ways (base render, your project, new render), so its changes land and your edit stays. Recorded from the real CLI against a small fixture template (see [Development](#development)).</sub>
+
 **Status: 🚀 stable v1 ([latest release](https://github.com/Templetry/engine/releases/latest))** — the manifest, directives, answers-file and registry schemas plus the CLI surface are stable public API under the [compatibility policy](https://github.com/Templetry/wiki/blob/main/spec/compatibility.md) ([ADR-0013](https://github.com/Templetry/wiki/blob/main/adr/0013-declare-v1.md)).
 
 Since v1.0: `templetry update` (three-way merge), `templetry verify` in Docker, **lazy pieces** (`pieces`/`add`), YAML/TOML patches, feature `requires`/`conflicts` and `presets`, **multi-forge template hosting** (`github:`, `gitlab:`, `gitea:` source schemes) and the `templetry-mcp` server. Since v1.10 forms carry a taxonomy (`kinds`/`languages`/`frameworks`) and `templetry list` filters on it. Output paths are hardened against escapes and platform quirks; the directive scanner is fuzz-tested.
@@ -76,7 +80,20 @@ Usage guides live in the wiki: [getting started](https://github.com/Templetry/wi
 
 ```sh
 go build ./...
-go test ./...
+go test ./...          # CI also runs -race and golangci-lint v2
+```
+
+`update` merges with `git merge-file`, so `git` must be on `PATH` for its tests. No test touches the network or needs Docker:
+
+- `internal/forgetest` is an in-memory GitHub (codeload tarballs and the commits API) behind `http.DefaultClient`, so `init` → edit → `update` runs end to end against templates the test publishes, commit by commit.
+- `internal/fakedocker` puts a copy of the test binary on `PATH` as `docker`, recording what `verify` would have run.
+- Both binaries are tested in-process: `templetry` through `run(args, stdout, stderr)` and `templetry-mcp` through `serve(in, out)`, a JSON-RPC session over pipes.
+
+The demo above is recorded the same way, so it always shows real output. To regenerate it:
+
+```sh
+TEMPLETRY_DEMO_CAST=$PWD/docs/demo.cast go test ./cmd/templetry -run TestRecordDemo -count=1
+npx svg-term-cli@2.1.1 --in docs/demo.cast --out docs/demo.svg --window --no-cursor
 ```
 
 ## License
