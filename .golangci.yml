@@ -1,6 +1,7 @@
 # golangci-lint v2 configuration: the standard linter set, with errcheck told
 # about the idioms this code base uses on purpose (deferred Close/RemoveAll on
-# temporary resources, flag sets created with flag.ExitOnError).
+# temporary resources, flag sets created with flag.ExitOnError, CLI output
+# written with fmt.Fprint*).
 version: "2"
 
 linters:
@@ -12,3 +13,8 @@ linters:
         - (*compress/gzip.Reader).Close
         - os.RemoveAll
         - (*flag.FlagSet).Parse
+        # CLI output: like fmt.Print*, a failed write to stdout/stderr has
+        # nowhere better to be reported.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln

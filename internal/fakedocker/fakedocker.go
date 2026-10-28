@@ -11,7 +11,6 @@ package fakedocker
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -104,19 +103,11 @@ func Last(t *testing.T, logPath string) Call {
 
 func copyFile(t *testing.T, from, to string) {
 	t.Helper()
-	in, err := os.Open(from)
+	data, err := os.ReadFile(from)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer in.Close()
-	out, err := os.OpenFile(to, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		t.Fatal(err)
-	}
-	if err := out.Close(); err != nil {
+	if err := os.WriteFile(to, data, 0o755); err != nil {
 		t.Fatal(err)
 	}
 }

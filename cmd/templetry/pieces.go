@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/Templetry/engine/answers"
@@ -23,16 +24,18 @@ func formFilesFor(ans answers.Answers, templateDir string) (*source.FileSet, str
 }
 
 // runPieces lists the pieces the project's template ships.
-func runPieces(args []string) error {
+func runPieces(args []string, stdout, stderr io.Writer) error {
 	dir := "."
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		dir = args[0]
 		args = args[1:]
 	}
-	fs := flag.NewFlagSet("pieces", flag.ExitOnError)
+	fs := flag.NewFlagSet("pieces", flag.ContinueOnError)
 	template := fs.String("template", "", "template directory (for local templates)")
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	ans, err := answers.Read(dir)
 	if err != nil {
 		return err
@@ -44,7 +47,7 @@ func runPieces(args []string) error {
 	reg, _ := loadRegistryOrNil(*registry)
 	infos := piece.Available(files, reg, ans)
 	if len(infos) == 0 {
-		fmt.Println("no pieces available for this project")
+		fmt.Fprintln(stdout, "no pieces available for this project")
 		return nil
 	}
 	for _, in := range infos {
@@ -56,9 +59,9 @@ func runPieces(args []string) error {
 		if in.Common {
 			origin = "  (common)"
 		}
-		fmt.Printf("%s %-24s %s%s\n", mark, in.Name, in.Description, origin)
+		fmt.Fprintf(stdout, "%s %-24s %s%s\n", mark, in.Name, in.Description, origin)
 	}
-	fmt.Println("(* already applied — add with: templetry add <piece>)")
+	fmt.Fprintln(stdout, "(* already applied — add with: templetry add <piece>)")
 	return nil
 }
 
@@ -73,7 +76,7 @@ func loadRegistryOrNil(location string) (*catalog.Registry, error) {
 }
 
 // runAdd applies one piece to an existing project (ADR-0014).
-func runAdd(args []string) error {
+func runAdd(args []string, stdout, stderr io.Writer) error {
 	name := ""
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		name = args[0]
@@ -84,12 +87,14 @@ func runAdd(args []string) error {
 		dir = args[0]
 		args = args[1:]
 	}
-	fs := flag.NewFlagSet("add", flag.ExitOnError)
+	fs := flag.NewFlagSet("add", flag.ContinueOnError)
 	template := fs.String("template", "", "template directory (for local templates)")
 	registry := fs.String("registry", "", "registry URL or file (default: official catalog)")
 	var sets multiFlag
 	fs.Var(&sets, "set", "piece variable key=value (repeatable)")
-	fs.Parse(args)
+	if err := parseFlags(fs, args, stderr); err != nil {
+		return err
+	}
 	if name == "" {
 		return fmt.Errorf("usage: templetry add <piece> [dir] (try 'templetry pieces')")
 	}
@@ -151,10 +156,10 @@ func runAdd(args []string) error {
 	if err := answers.Write(dir, ans); err != nil {
 		return err
 	}
-	fmt.Printf("piece %s applied: %d files", name, len(res.Files))
+	fmt.Fprintf(stdout, "piece %s applied: %d files", name, len(res.Files))
 	if len(pm.Patches) > 0 {
-		fmt.Printf(" + %d patches", len(pm.Patches))
+		fmt.Fprintf(stdout, " + %d patches", len(pm.Patches))
 	}
-	fmt.Println(" — review with git before committing")
+	fmt.Fprintln(stdout, " — review with git before committing")
 	return nil
 }
