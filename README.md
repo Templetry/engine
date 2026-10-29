@@ -66,11 +66,76 @@ templetry add axios-api ./my-app --set api_base=/v2  # adopt a piece into a livi
 
 ## MCP server (AI agents)
 
-`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Example Claude Code registration:
+`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Copy-paste configuration for the common clients follows; the server is a plain executable, so any other MCP client works the same way. It is also prepared for the [official MCP registry](docs/mcp-registry.md) (publishing is off until enabled).
+
+### Where the binary is
+
+If `templetry-mcp` is on your `PATH`, use the bare name `templetry-mcp` as the command. Some apps (Claude Desktop especially) do not inherit your shell `PATH`, so give them the absolute path:
+
+| Installed with | Path |
+|---|---|
+| Homebrew, Apple Silicon | `/opt/homebrew/bin/templetry-mcp` |
+| Homebrew, Intel Mac / Linux | `/usr/local/bin/templetry-mcp` (Linux brew: `/home/linuxbrew/.linuxbrew/bin/templetry-mcp`) |
+| `install.sh` | `~/.local/bin/templetry-mcp` (or `/usr/local/bin/templetry-mcp` when run as root); write the full home path in JSON, `~` is not expanded |
+| Scoop (Windows) | `C:\Users\<you>\scoop\shims\templetry-mcp.exe` |
+| Downloaded release binary | wherever you put it |
+
+`where templetry-mcp` (Windows) or `command -v templetry-mcp` prints the right one.
+
+### Claude Code
 
 ```sh
-claude mcp add templetry -- templetry-mcp
+claude mcp add templetry -- templetry-mcp            # this project, private to you
+claude mcp add --scope user templetry -- templetry-mcp   # every project
+claude mcp list
 ```
+
+### Claude Desktop
+
+Edit `claude_desktop_config.json` (Settings > Developer > Edit Config; macOS `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\`) and restart the app:
+
+```json
+{
+  "mcpServers": {
+    "templetry": {
+      "command": "/opt/homebrew/bin/templetry-mcp"
+    }
+  }
+}
+```
+
+On Windows use `"command": "C:\Users\<you>\scoop\shims\templetry-mcp.exe"`.
+
+### Cursor
+
+`.cursor/mcp.json` in a project, or `~/.cursor/mcp.json` for all projects:
+
+```json
+{
+  "mcpServers": {
+    "templetry": {
+      "command": "templetry-mcp"
+    }
+  }
+}
+```
+
+### VS Code
+
+`.vscode/mcp.json` in the workspace (or "MCP: Open User Configuration" for every workspace). Note the key is `servers`, not `mcpServers`:
+
+```json
+{
+  "servers": {
+    "templetry": {
+      "type": "stdio",
+      "command": "templetry-mcp"
+    }
+  }
+}
+```
+
+The server takes no arguments and no environment; to work against a private catalog the agent passes `registry` on each tool call.
 
 ## Documentation
 

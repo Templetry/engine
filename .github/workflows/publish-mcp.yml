@@ -1,0 +1,73 @@
+name: Publish MCP
+
+# Publishes templetry-mcp to the official MCP registry
+# (registry.modelcontextprotocol.io) after a release.
+#
+# Off by default: every job is skipped unless the repository variable
+# MCP_PUBLISH is set to "true" (Settings > Secrets and variables > Actions >
+# Variables). See docs/mcp-registry.md.
+#
+# It follows the Release workflow rather than the tag itself: the MCPB bundles
+# and SHA256SUMS must already be attached to the release, and a release created
+# with GITHUB_TOKEN does not fire `release` events.
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (for example v1.10.3)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      vars.MCP_PUBLISH == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'v')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC: proves the repository to the registry
+    env:
+      # Pin deliberately; do not use the mutable releases/latest URL.
+      MCP_PUBLISHER_VERSION: v1.8.1
+      TAG: ${{ github.event.inputs.tag || github.event.workflow_run.head_branch }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Fill server.json from the release
+        run: |
+          version=${TAG#v}
+          gh release download "$TAG" --pattern SHA256SUMS --dir "$RUNNER_TEMP"
+          jq --arg v "$version" --arg tag "$TAG" --rawfile sums "$RUNNER_TEMP/SHA256SUMS" '
+            ($sums | split("\n") | map(select(length > 0) | split("  ") | {(.[1]): .[0]}) | add) as $sha
+            | .version = $v
+            | .packages |= map(
+                (.identifier | split("/") | last) as $file
+                | .version = $v
+                | .identifier = "https://github.com/Templetry/engine/releases/download/\($tag)/\($file)"
+                | .fileSha256 = $sha[$file])
+            | if any(.packages[]; .fileSha256 == null) then error("a bundle is missing from SHA256SUMS") else . end
+          ' server.json > "$RUNNER_TEMP/server.json"
+          mv "$RUNNER_TEMP/server.json" server.json
+          cat server.json
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+
+      - name: Log in with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish
