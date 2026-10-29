@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Templetry/templetry-mcp",
+  "title": "Templetry",
+  "description": "Scaffold, plan, update and extend projects from Templetry templates.",
+  "repository": {
+    "url": "https://github.com/Templetry/engine",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/Templetry/wiki/blob/main/guide/ai-agents.md",
+  "version": "1.10.2",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-linux-amd64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-linux-arm64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-darwin-amd64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-darwin-arm64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-windows-amd64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Templetry/engine/releases/download/v1.10.2/templetry-mcp-windows-arm64.mcpb",
+      "version": "1.10.2",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": { "type": "stdio" }
+    }
+  ]
+}
