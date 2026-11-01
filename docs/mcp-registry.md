@@ -1,8 +1,9 @@
 # Publishing `templetry-mcp` to the MCP registry
 
-`templetry-mcp` is not yet listed in the [official MCP registry](https://registry.modelcontextprotocol.io).
-Everything needed is in the repository; publishing stays off until the owner
-switches it on.
+`templetry-mcp` is listed in the [official MCP registry](https://registry.modelcontextprotocol.io)
+as `io.github.Templetry/templetry-mcp`. The repository variable `MCP_PUBLISH`
+is `true`, so every release is published automatically; the sections below
+describe how that is wired.
 
 ## How the registry sees us
 
@@ -25,7 +26,7 @@ The alternatives, if MCPB is not wanted: an OCI image on GHCR (a `Dockerfile`
 plus a push step) or an npm wrapper package that downloads the binary. Both mean
 publishing to a second place, which MCPB avoids.
 
-## Enabling publishing
+## How publishing is enabled
 
 1. Make sure the GitHub organization `Templetry` is what GitHub OIDC reports as
    the repository owner (it is); the registry then allows the namespace
@@ -40,7 +41,7 @@ publishing to a second place, which MCPB avoids.
    must be a release made after this change): Actions > Publish MCP > Run
    workflow, with the tag.
 
-Set the variable back to anything else to turn it off again.
+Set the variable back to anything else to turn automatic publishing off.
 
 ## Checking by hand
 

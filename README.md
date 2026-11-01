@@ -66,7 +66,7 @@ templetry add axios-api ./my-app --set api_base=/v2  # adopt a piece into a livi
 
 ## MCP server (AI agents)
 
-`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Copy-paste configuration for the common clients follows; the server is a plain executable, so any other MCP client works the same way. It is also prepared for the [official MCP registry](docs/mcp-registry.md) (publishing is off until enabled).
+`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Copy-paste configuration for the common clients follows; the server is a plain executable, so any other MCP client works the same way. It is listed on the [official MCP registry](docs/mcp-registry.md) as `io.github.Templetry/templetry-mcp` and published automatically after each release.
 
 ### Where the binary is
 
