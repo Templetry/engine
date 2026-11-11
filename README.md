@@ -66,7 +66,7 @@ templetry add axios-api ./my-app --set api_base=/v2  # adopt a piece into a livi
 
 ## MCP server (AI agents)
 
-`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, no configuration. It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Copy-paste configuration for the common clients follows; the server is a plain executable, so any other MCP client works the same way. It is listed on the [official MCP registry](docs/mcp-registry.md) as `io.github.Templetry/templetry-mcp` and published automatically after each release.
+`templetry-mcp` (in the same releases) speaks the Model Context Protocol over stdio — no dependencies, optional operator settings (below). It exposes seven tools: `list_templates`, `get_form_schema`, `plan`, `render`, `update`, `list_pieces` and `add_piece`, so an agent can browse the catalog, scaffold a ready-to-work project, adopt pieces and keep it all updated. Copy-paste configuration for the common clients follows; the server is a plain executable, so any other MCP client works the same way. It is listed on the [official MCP registry](docs/mcp-registry.md) as `io.github.Templetry/templetry-mcp` and published automatically after each release.
 
 ### Where the binary is
 
@@ -135,7 +135,29 @@ On Windows use `"command": "C:\Users\<you>\scoop\shims\templetry-mcp.exe"`.
 }
 ```
 
-The server takes no arguments and no environment; to work against a private catalog the agent passes `registry` on each tool call.
+The server needs no configuration for the common case (the official catalog, projects under the folder the client starts it in). Everything it accepts from the environment is listed below.
+
+### Operator settings and limits
+
+The server trusts whoever starts it (the **operator**: you, in your client's config) and nothing that arrives in a tool call, because a model chooses those arguments and a hostile template or registry can steer the model. So the settings below can only be given at start, as environment variables or flags, and never as tool arguments:
+
+| Environment variable | Flag | What it does | Default |
+|---|---|---|---|
+| `TEMPLETRY_MCP_ROOT` | `--root` | Workspace root. `out_dir` and `dir` must resolve inside it (relative paths are relative to it); `..` escapes, absolute paths elsewhere and symlinks that lead out are refused. | The server's working directory. Many clients start servers in an arbitrary folder, so set it. |
+| `TEMPLETRY_MCP_ALLOWED_HOSTS` | `--allow-hosts` | Comma-separated extra hosts registries and templates may be fetched from. | `raw.githubusercontent.com`, `github.com`, `api.github.com`, `codeload.github.com` |
+| `TEMPLETRY_MCP_REGISTRY` | `--registry` | Registry used when a tool call names none: an `https://` URL or a local file path. This is how an operator points the server at a private catalog. | The official catalog |
+| `TEMPLETRY_TOKEN` | | Token for private templates (GitHub: `Bearer`). Sent only to the hosts below. | unset |
+| `TEMPLETRY_TOKEN_HOSTS` | | Comma-separated extra hosts that may receive `TEMPLETRY_TOKEN` (for a self-hosted GitLab or Gitea). | `github.com`, `api.github.com`, `codeload.github.com` |
+
+What a tool call can and cannot do:
+
+- **`registry`** must be an `https://` URL on an allowed host (port 443, no credentials). Local files, `file:`, `http:`, IP addresses, `localhost` and hosts that resolve to private, loopback or link-local addresses are refused, and a redirect to a different host is not followed. The one exception is the operator's own `TEMPLETRY_MCP_REGISTRY`, which a call may name or omit. The server ignores `HTTP_PROXY`/`HTTPS_PROXY`, because the address check has to see the real connection.
+- **Files a template writes** may not be absolute, climb out of the destination, pass through a symlink, or sit under a `.git` directory (in any spelling a file system folds to it: `.GIT`, `.git.`, `git~1`), since a git hook there would run on the next commit. `.gitignore`, `.gitattributes` and `.github/` are fine. The CLI applies the same rule.
+- **The token** is never sent to a host that is not on the token list, on a plain `http` request, or along a redirect that leaves the list. A registry or an answers file can name any forge host, so the host a request goes to decides, not where the token came from. This applies to the CLI as well: a GitLab or Gitea token now needs the host in `TEMPLETRY_TOKEN_HOSTS`.
+
+Residual risks: a registry on an allowed host can be anyone's (for example any repository on `raw.githubusercontent.com`), so an allowed host is trusted to serve registries, not to be benign; the symlink check is made just before writing, not atomically; and the server never sandboxes the process itself, so run it with the privileges you are willing to give an agent.
+
+The CLI is different on purpose: `templetry init --registry ./local` is an operator typing a path, so it still accepts local files and any URL. Only the MCP tool arguments are untrusted.
 
 ## Documentation
 
@@ -150,7 +172,7 @@ go test ./...          # CI also runs -race and golangci-lint v2
 
 `update` merges with `git merge-file`, so `git` must be on `PATH` for its tests. No test touches the network or needs Docker:
 
-- `internal/forgetest` is an in-memory GitHub (codeload tarballs and the commits API) behind `http.DefaultClient`, so `init` → edit → `update` runs end to end against templates the test publishes, commit by commit.
+- `internal/forgetest` is an in-memory GitHub (codeload tarballs and the commits API) behind `http.DefaultClient` (and, in the MCP tests, behind the server's guarded client), so `init` → edit → `update` runs end to end against templates the test publishes, commit by commit.
 - `internal/fakedocker` puts a copy of the test binary on `PATH` as `docker`, recording what `verify` would have run.
 - Both binaries are tested in-process: `templetry` through `run(args, stdout, stderr)` and `templetry-mcp` through `serve(in, out)`, a JSON-RPC session over pipes.
 
