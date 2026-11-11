@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Templetry/engine/internal/safepath"
 	"github.com/Templetry/engine/manifest"
 	"github.com/Templetry/engine/ops"
 	"github.com/Templetry/engine/source"
@@ -221,6 +222,9 @@ func validateDest(dest string) error {
 		return fmt.Errorf("path escapes the output root")
 	}
 	for _, seg := range strings.Split(cleaned, "/") {
+		if safepath.IsGitName(seg) {
+			return fmt.Errorf("segment %q is a git directory (a file there would run on the next commit)", seg)
+		}
 		if seg != strings.TrimRight(seg, ". ") {
 			return fmt.Errorf("segment %q ends in a dot or space (silently trimmed on Windows)", seg)
 		}

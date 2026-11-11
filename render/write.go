@@ -1,44 +1,48 @@
 package render
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/Templetry/engine/internal/safepath"
 	"github.com/Templetry/engine/source"
 )
 
-// Contain resolves p beneath root and refuses anything that escapes it.
+// Contain resolves p beneath root and refuses anything unsafe to write: an
+// escape from root, an absolute path, any .git segment (in any spelling the
+// platforms fold to it), reserved Windows names, and a path that passes
+// through a symlink. The rules live in safepath.
 //
 // The tarball reader rejects unsafe entries and the planner rejects unsafe
 // identity destinations, so a path arriving here has already been checked
 // twice. This is the last check before a write, and the only one that sees
-// the actual root — which is what makes it worth repeating: being wrong here
-// means a file outside the directory the user named.
+// the actual root and the actual disk — which is what makes it worth
+// repeating. Every writer (render, update, pieces) goes through it, so the
+// CLI and the MCP server are protected by the same code.
 func Contain(root, p string) (string, error) {
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return "", err
-	}
-	full := filepath.Join(abs, filepath.FromSlash(p))
-	rel, err := filepath.Rel(abs, full)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("refusing to write outside %s: %q", root, p)
-	}
-	return full, nil
+	return safepath.Resolve(root, p)
 }
 
 // WriteDir materializes a FileSet under dir, creating directories as needed.
 // The only effectful step of the render pipeline.
+//
+// Every path is validated before the first byte is written, so a template
+// with one bad path leaves the destination untouched instead of half
+// written.
 func WriteDir(set *source.FileSet, dir string) error {
-	for _, p := range set.Paths() {
-		f := set.Get(p)
+	fulls := make([]string, 0, set.Len())
+	paths := set.Paths()
+	for _, p := range paths {
 		full, err := Contain(dir, p)
 		if err != nil {
 			return err
 		}
+		fulls = append(fulls, full)
+	}
+	for i, p := range paths {
+		f := set.Get(p)
+		full := fulls[i]
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return err
 		}

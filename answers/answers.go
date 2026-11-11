@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Templetry/engine/internal/safepath"
 	"github.com/goccy/go-yaml"
 )
 
@@ -126,7 +127,13 @@ func Marshal(a Answers) []byte {
 
 // Write persists the record at the project root.
 func Write(dir string, a Answers) error {
-	return os.WriteFile(filepath.Join(dir, Path), Marshal(a), 0o644)
+	// The answers file is the one write that bypasses render: refuse a symlink
+	// planted at its name, which would redirect the write.
+	full, err := safepath.Resolve(dir, Path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(full, Marshal(a), 0o644)
 }
 
 func sortedKeys(m map[string]string) []string {
