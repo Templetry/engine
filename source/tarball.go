@@ -84,10 +84,12 @@ func ResolveGitHubRef(repo, ref, token string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github.sha")
-	if token != "" {
+	// The host is fixed here, but a redirect could leave it: do() strips the
+	// token when it does.
+	if tokenAllowed(req.URL) && token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := do(req)
 	if err != nil {
 		return "", err
 	}
@@ -106,7 +108,11 @@ func ResolveGitHubRef(repo, ref, token string) (string, error) {
 // commit) as a FileSet, optionally scoped to subdir.
 func FetchGitHubTarball(repo, ref, subdir string) (*FileSet, error) {
 	url := fmt.Sprintf("https://codeload.github.com/%s/tar.gz/%s", repo, ref)
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s@%s: %w", repo, ref, err)
 	}

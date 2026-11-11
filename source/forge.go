@@ -149,10 +149,8 @@ func Fetch(src Ref, ref, subdir, token string) (*FileSet, error) {
 	if err != nil {
 		return nil, err
 	}
-	if k, v := src.authHeader(token); k != "" {
-		req.Header.Set(k, v)
-	}
-	resp, err := http.DefaultClient.Do(req)
+	src.setAuth(req, token)
+	resp, err := do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s@%s: %w", src, ref, err)
 	}
@@ -201,10 +199,8 @@ func getJSON(src Ref, u, token string, v any) error {
 	if err != nil {
 		return err
 	}
-	if k, hv := src.authHeader(token); k != "" {
-		req.Header.Set(k, hv)
-	}
-	resp, err := http.DefaultClient.Do(req)
+	src.setAuth(req, token)
+	resp, err := do(req)
 	if err != nil {
 		return err
 	}
