@@ -15,7 +15,10 @@ import (
 )
 
 // loadRegistry reads a registry from a local file or URL; empty means the
-// official Templetry catalog.
+// official Templetry catalog. Here the registry is chosen by the person typing
+// the command, so a local path or any URL is an explicit operator action. The
+// MCP server does not share this function: there it is a tool argument and is
+// restricted (see cmd/templetry-mcp/settings.go).
 func loadRegistry(location string) (*catalog.Registry, error) {
 	if location == "" {
 		location = catalog.DefaultRegistryURL

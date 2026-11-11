@@ -8,14 +8,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 
 	"github.com/Templetry/engine/answers"
-	"github.com/Templetry/engine/catalog"
 	"github.com/Templetry/engine/manifest"
 	"github.com/Templetry/engine/piece"
 	"github.com/Templetry/engine/planner"
@@ -28,6 +27,22 @@ import (
 var version = "1.2.0-dev"
 
 func main() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "templetry-mcp:", err)
+		os.Exit(2)
+	}
+	s, err := newSettings(os.Args[1:], os.Getenv, cwd, nil, os.Stderr)
+	if err != nil {
+		if err != flag.ErrHelp {
+			fmt.Fprintln(os.Stderr, "templetry-mcp:", err)
+			os.Exit(2)
+		}
+		os.Exit(0)
+	}
+	s.install()
+	// stderr is not the protocol channel; say where writes may land.
+	fmt.Fprintf(os.Stderr, "templetry-mcp: workspace root %s (set %s to change it)\n", s.root, EnvRoot)
 	serve(os.Stdin, os.Stdout)
 }
 
@@ -136,7 +151,7 @@ func schema(props map[string]any, required ...string) map[string]any {
 
 var registryProp = map[string]any{
 	"type":        "string",
-	"description": "Registry URL or local file; omit for the official Templetry catalog",
+	"description": "https:// registry URL on a host the server operator allows (GitHub by default); omit for the server's default registry",
 }
 var templateProp = map[string]any{
 	"type":        "string",
@@ -180,7 +195,7 @@ var toolDefs = []map[string]any{
 		"name":        "render",
 		"description": "Render a template into a local directory, producing a ready-to-work project (with its .templetry-answers.yml provenance record). The directory must be empty unless force is true.",
 		"inputSchema": schema(map[string]any{
-			"template": templateProp, "out_dir": map[string]any{"type": "string", "description": "Output directory"},
+			"template": templateProp, "out_dir": map[string]any{"type": "string", "description": "Output directory, relative to the server's workspace root or an absolute path inside it"},
 			"variables": variablesProp, "features": featuresProp, "preset": presetProp, "registry": registryProp,
 			"force": map[string]any{"type": "boolean", "description": "Write into a non-empty directory"},
 		}, "template", "out_dir"),
@@ -189,7 +204,7 @@ var toolDefs = []map[string]any{
 		"name":        "update",
 		"description": "Template update cycle for an existing Templetry project: re-render at the template's head with the recorded inputs, diff against disk, three-way merge. Preview by default; set apply to write (never deletes user files).",
 		"inputSchema": schema(map[string]any{
-			"dir":   map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml)"},
+			"dir":   map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml), relative to the server's workspace root or an absolute path inside it"},
 			"apply": map[string]any{"type": "boolean", "description": "Write the update instead of previewing"},
 		}, "dir"),
 	},
@@ -197,14 +212,14 @@ var toolDefs = []map[string]any{
 		"name":        "list_pieces",
 		"description": "List the lazy pieces a project's template ships — decoupled units the project can adopt after creation — marking the already-applied ones.",
 		"inputSchema": schema(map[string]any{
-			"dir": map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml)"},
+			"dir": map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml), relative to the server's workspace root or an absolute path inside it"},
 		}, "dir"),
 	},
 	{
 		"name":        "add_piece",
 		"description": "Apply one lazy piece to an existing Templetry project: renders the piece with the project's identity, writes only new files (never overwrites), applies the piece's declared patches and records it in the answers file.",
 		"inputSchema": schema(map[string]any{
-			"dir":   map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml)"},
+			"dir":   map[string]any{"type": "string", "description": "Project directory (contains .templetry-answers.yml), relative to the server's workspace root or an absolute path inside it"},
 			"piece": map[string]any{"type": "string", "description": "Piece name (see list_pieces)"},
 			"variables": map[string]any{
 				"type":                 "object",
@@ -215,33 +230,9 @@ var toolDefs = []map[string]any{
 	},
 }
 
-// loadRegistry reads a registry from a local file or URL; empty means the
-// official Templetry catalog.
-func loadRegistry(location string) (*catalog.Registry, error) {
-	if location == "" {
-		location = catalog.DefaultRegistryURL
-	}
-	if data, err := os.ReadFile(location); err == nil {
-		return catalog.Parse(data)
-	}
-	resp, err := http.Get(location)
-	if err != nil {
-		return nil, fmt.Errorf("fetching registry: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetching registry: HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return catalog.Parse(data)
-}
-
 // fetchForm resolves <parent>/<form> and downloads its template.
 func fetchForm(registry, ref string) (*source.FileSet, *manifest.Manifest, string, error) {
-	reg, err := loadRegistry(registry)
+	reg, err := current.loadRegistry(registry)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -285,6 +276,9 @@ type toolArgs struct {
 }
 
 func callTool(name string, raw json.RawMessage) (string, error) {
+	if current == nil {
+		return "", fmt.Errorf("server is not configured")
+	}
 	var a toolArgs
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &a); err != nil {
@@ -293,7 +287,7 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 	}
 	switch name {
 	case "list_templates":
-		reg, err := loadRegistry(a.Registry)
+		reg, err := current.loadRegistry(a.Registry)
 		if err != nil {
 			return "", err
 		}
@@ -336,6 +330,10 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if a.OutDir == "" {
 			return "", fmt.Errorf("out_dir is required")
 		}
+		outDir, err := current.resolveDir(a.OutDir)
+		if err != nil {
+			return "", err
+		}
 		files, m, srcRef, err := fetchForm(a.Registry, a.Template)
 		if err != nil {
 			return "", err
@@ -350,14 +348,14 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 				p.SourceCommit = sha
 			}
 		}
-		if entries, err := os.ReadDir(a.OutDir); err == nil && len(entries) > 0 && !a.Force {
+		if entries, err := os.ReadDir(outDir); err == nil && len(entries) > 0 && !a.Force {
 			return "", fmt.Errorf("output directory %s is not empty (set force to override)", a.OutDir)
 		}
 		result, err := render.Apply(p, files)
 		if err != nil {
 			return "", err
 		}
-		if err := render.WriteDir(result, a.OutDir); err != nil {
+		if err := render.WriteDir(result, outDir); err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("rendered %s -> %s (%d files)", a.Template, a.OutDir, result.Len()), nil
@@ -366,6 +364,11 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if a.Dir == "" {
 			return "", fmt.Errorf("dir is required")
 		}
+		dir, err := current.resolveDir(a.Dir)
+		if err != nil {
+			return "", err
+		}
+		a.Dir = dir
 		p, err := update.Prepare(a.Dir, "")
 		if err != nil {
 			return "", err
@@ -401,6 +404,11 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if a.Dir == "" {
 			return "", fmt.Errorf("dir is required")
 		}
+		dir, err := current.resolveDir(a.Dir)
+		if err != nil {
+			return "", err
+		}
+		a.Dir = dir
 		ans, err := answers.Read(a.Dir)
 		if err != nil {
 			return "", err
@@ -428,6 +436,11 @@ func callTool(name string, raw json.RawMessage) (string, error) {
 		if a.Dir == "" || a.Piece == "" {
 			return "", fmt.Errorf("dir and piece are required")
 		}
+		dir, err := current.resolveDir(a.Dir)
+		if err != nil {
+			return "", err
+		}
+		a.Dir = dir
 		ans, err := answers.Read(a.Dir)
 		if err != nil {
 			return "", err

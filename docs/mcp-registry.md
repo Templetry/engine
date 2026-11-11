@@ -52,3 +52,20 @@ mcp-publisher publish           # after editing server.json for a real release
 
 The registry limits `description` to 100 characters and does not verify
 `fileSha256`; MCP clients do, before installing.
+
+## What the published server accepts
+
+The listing starts `templetry-mcp` with no arguments, so it runs with its
+defaults: the workspace root is the client's working directory, registries and
+templates may come only from the official registry host and GitHub, and
+`TEMPLETRY_TOKEN` is sent only to GitHub. Anything else is set by the person
+installing it, as environment variables or flags at start
+(`TEMPLETRY_MCP_ROOT`, `TEMPLETRY_MCP_ALLOWED_HOSTS`, `TEMPLETRY_MCP_REGISTRY`,
+`TEMPLETRY_TOKEN_HOSTS`) and never as tool arguments. The full table and the
+reasoning are in the README under
+[MCP server](../README.md#operator-settings-and-limits).
+
+`server.json` does not declare these variables yet. The MCPB bundles start the
+server in a directory the client picks, so a bundle user has to be told to set
+`TEMPLETRY_MCP_ROOT` (or the client's own folder setting) before `render`
+accepts an `out_dir`; wiring that into the bundle manifest is future work.
