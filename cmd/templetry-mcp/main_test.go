@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,6 +57,14 @@ func fixture(t *testing.T) (*forgetest.Forge, string) {
 	if err := os.WriteFile(reg, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The operator's configuration: a workspace root of its own, the fixture
+	// registry as the operator-chosen default, and the fake forge as the
+	// transport that connects.
+	s, err := newSettings([]string{"-root", t.TempDir(), "-registry", reg}, func(string) string { return "" }, t.TempDir(), forge, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.install())
 	return forge, reg
 }
 
@@ -253,7 +262,7 @@ func TestReadOnlyToolsAgainstAFixture(t *testing.T) {
 
 func TestWritingToolsRoundTrip(t *testing.T) {
 	forge, reg := fixture(t)
-	out := filepath.Join(t.TempDir(), "proj")
+	out := filepath.Join(current.root, "proj")
 	replies := exchange(t,
 		call(1, "render", map[string]any{
 			"registry": reg, "template": "acme/demo", "out_dir": out,
@@ -338,7 +347,7 @@ func TestInvalidRequests(t *testing.T) {
 		call(10, "get_form_schema", map[string]any{"registry": reg, "template": "acme/later"}),
 		call(11, "plan", map[string]any{"registry": reg, "template": "acme/demo", "variables": map[string]string{"project_name": "1 bad"}}),
 		call(12, "list_templates", map[string]any{"registry": filepath.Join(t.TempDir(), "missing.json")}),
-		call(13, "update", map[string]any{"dir": t.TempDir()}),
+		call(13, "update", map[string]any{"dir": current.root}),
 	)
 	if len(replies) != 13 {
 		ids := []string{}
